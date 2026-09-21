@@ -1,17 +1,13 @@
 from aiogram import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from app.config import settings
 from app.monitoring.monitor import EncarMonitor
 from app.telegram.notifications import TelegramNotifier
 
 
 class MonitorScheduler:
 
-    def __init__(
-        self,
-        bot: Bot,
-    ):
+    def __init__(self, bot: Bot):
         notifier = TelegramNotifier(bot)
 
         self.monitor = EncarMonitor(
@@ -22,54 +18,24 @@ class MonitorScheduler:
 
     def start(self):
         self.scheduler.add_job(
-            self.monitor.check_all_filters,
+            self.monitor.check_due_users,
             "interval",
-            minutes=settings.monitor_interval_minutes,
-            id="encar_monitor",
+            minutes=1,
+            id="encar_monitor_tick",
             replace_existing=True,
             max_instances=1,
+            coalesce=True,
+            misfire_grace_time=30,
         )
 
         self.scheduler.start()
 
-        print(
-            "Monitor scheduler started "
-            f"({settings.monitor_interval_minutes} min)."
-        )
-
-    def update_interval(
-        self,
-        minutes: int,
-    ):
-        job = self.scheduler.get_job(
-            "encar_monitor"
-        )
-
-        if job is None:
-            raise RuntimeError(
-                "Monitor scheduler is not running."
-            )
-
-        self.scheduler.reschedule_job(
-            "encar_monitor",
-            trigger="interval",
-            minutes=minutes,
-        )
-
-        settings.monitor_interval_minutes = minutes
-
-        print(
-            f"Monitor interval changed to "
-            f"{minutes} minutes."
-        )
+        print("Monitor scheduler started (1 minute tick).")
 
     async def stop(self):
-        self.scheduler.shutdown(
-            wait=False,
-        )
+        if self.scheduler.running:
+            self.scheduler.shutdown(wait=False)
 
         await self.monitor.close()
 
-        print(
-            "Monitor scheduler stopped."
-        )
+        print("Monitor scheduler stopped.")
