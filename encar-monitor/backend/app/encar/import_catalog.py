@@ -250,58 +250,82 @@ async def fetch_models_from_search(
 ) -> list[str]:
     """Build the model catalog from Encar's real search API."""
 
-    query = (
-        f"(And.Hidden.N._.CarType.Y._."
-        f"Manufacturer.{manufacturer_name}.)"
-    )
+    # Важный нюанс Encar:
+    # для общего каталога легковых автомобилей рабочий запрос
+    # использует CarType.N внутри C-группы. CarType.Y даёт
+    # неполные результаты для иностранных производителей.
+    query_variants = [
+        (
+            f"(And.Hidden.N._."
+            f"(C.CarType.N._.Manufacturer.{manufacturer_name}.))"
+        ),
+        (
+            f"(And.Hidden.N._."
+            f"(C.CarType.Y._.Manufacturer.{manufacturer_name}.))"
+        ),
+        (
+            f"(And.Hidden.N._.CarType.N._."
+            f"Manufacturer.{manufacturer_name}.)"
+        ),
+    ]
 
     result: list[str] = []
     seen: set[str] = set()
 
-    no_new_pages = 0
+    for query_index, query in enumerate(query_variants):
+        print(f"  Search query #{query_index + 1}: {query}")
 
-    for start in range(0, max_results, page_size):
-        try:
-            batch = await encar_client.search(
-                query=query,
-                start=start,
-                count=page_size,
-            )
-        except Exception as error:
-            print(f"  Search API error: {error}")
-            break
+        page_result: list[str] = []
+        page_seen: set[str] = set()
+        no_new_pages = 0
 
-        if not batch:
-            break
+        for start in range(0, max_results, page_size):
+            try:
+                batch = await encar_client.search(
+                    query=query,
+                    start=start,
+                    count=page_size,
+                )
+            except Exception as error:
+                print(f"  Search API error: {error}")
+                break
 
-        before_count = len(result)
+            if not batch:
+                break
 
-        for car in batch:
-            model_name = car.get("Model")
+            before_count = len(page_result)
 
-            if not isinstance(model_name, str):
-                continue
+            for car in batch:
+                model_name = car.get("Model")
 
-            model_name = " ".join(model_name.split()).strip()
+                if not isinstance(model_name, str):
+                    continue
 
-            if not model_name or len(model_name) > 255:
-                continue
+                model_name = " ".join(model_name.split()).strip()
 
+                if not model_name or len(model_name) > 255:
+                    continue
+
+                if model_name not in page_seen:
+                    page_seen.add(model_name)
+                    page_result.append(model_name)
+
+            if len(page_result) == before_count:
+                no_new_pages += 1
+            else:
+                no_new_pages = 0
+
+            if no_new_pages >= 2 or len(batch) < page_size:
+                break
+
+        for model_name in page_result:
             if model_name not in seen:
                 seen.add(model_name)
                 result.append(model_name)
 
-        if len(result) == before_count:
-            no_new_pages += 1
-        else:
-            no_new_pages = 0
-
-        # Если две страницы подряд не дали новых моделей,
-        # дальше почти наверняка идут только дубликаты.
-        if no_new_pages >= 2:
-            break
-
-        if len(batch) < page_size:
+        # Первый вариант считается основным. Fallback нужен только
+        # если он действительно ничего не вернул.
+        if result:
             break
 
     return result
