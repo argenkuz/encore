@@ -42,6 +42,7 @@ def get_manufacturers(
 async def get_models(
     manufacturer: str,
     db: Session = Depends(get_db),
+    _user = Depends(authenticated_user),
 ):
 
     if not manufacturer.strip():
