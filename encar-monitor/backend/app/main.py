@@ -1,4 +1,5 @@
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
+import asyncio
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +24,7 @@ from app.monitoring.scheduler import MonitorScheduler
 
 bot: Bot | None = None
 monitor_scheduler: MonitorScheduler | None = None
+telegram_polling_task: asyncio.Task | None = None
 
 
 # =========================================================
@@ -33,6 +35,7 @@ monitor_scheduler: MonitorScheduler | None = None
 async def lifespan(app: FastAPI):
     global bot
     global monitor_scheduler
+    global telegram_polling_task
 
     print("Starting Encar Monitor...")
 
@@ -49,9 +52,17 @@ async def lifespan(app: FastAPI):
     # TELEGRAM BOT
     # -----------------------------------------------------
 
-    bot, _ = create_bot()
+    bot, dispatcher = create_bot()
 
     print("Telegram bot created.")
+
+    # Start Telegram long polling in the background.
+    # FastAPI and the Telegram bot can run in the same process.
+    telegram_polling_task = asyncio.create_task(
+        dispatcher.start_polling(bot),
+    )
+
+    print("Telegram polling started.")
 
 
     # -----------------------------------------------------
@@ -81,6 +92,15 @@ async def lifespan(app: FastAPI):
 
     finally:
         print("Stopping Encar Monitor...")
+
+        # -------------------------------------------------
+        # STOP TELEGRAM POLLING
+        # -------------------------------------------------
+
+        if telegram_polling_task is not None:
+            telegram_polling_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await telegram_polling_task
 
         # -------------------------------------------------
         # STOP SCHEDULER
