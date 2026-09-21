@@ -416,3 +416,44 @@ class CatalogBadge(Base):
         "CatalogModel",
         back_populates="badges",
     )
+
+class MonitorSettings(Base):
+    __tablename__ = "monitor_settings"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
+    interval_minutes: Mapped[int] = mapped_column(
+        Integer,
+        default=5,
+        nullable=False,
+    )
+
+    last_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    next_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    user: Mapped["User"] = relationship(
+        "User",
+    )
