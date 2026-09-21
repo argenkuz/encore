@@ -1080,3 +1080,56 @@ button:disabled {
     font-size: 11px;
   }
 }
+
+/* =========================
+   MONITOR META
+========================= */
+
+.monitor-next-run {
+  margin-top: 6px;
+  color: #7f8da5;
+  font-size: 11px;
+}
+
+.interval-button:disabled {
+  cursor: wait;
+}
+
+.file-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.file-button input {
+  display: none;
+}
+
+.telegram-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.telegram-status-row strong {
+  display: block;
+  color: #dce5f3;
+  font-size: 13px;
+}
+
+.telegram-status-row span:not(.telegram-status-dot) {
+  display: block;
+  margin-top: 4px;
+  color: #71809a;
+  font-size: 12px;
+}
+
+.telegram-status-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #20d878;
+  box-shadow: 0 0 10px rgba(32, 216, 120, 0.35);
+}

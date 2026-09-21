@@ -17,6 +17,7 @@ class FilterCreate(BaseModel):
     telegram_id: int
 
     name: str
+    enabled: bool = True
 
     manufacturer: str | None = None
     model_group: str | None = None
@@ -196,6 +197,7 @@ def create_filter(
     filter_ = Filter(
         user_id=user.id,
         name=data.name.strip(),
+        enabled=data.enabled,
 
         manufacturer=data.manufacturer,
         model_group=data.model_group,

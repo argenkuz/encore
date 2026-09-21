@@ -11,6 +11,7 @@ from app.database import init_db
 from app.api.filters import router as filters_router
 from app.api.users import router as users_router
 from app.api.catalog import router as catalog_router
+from app.api.settings import router as settings_router
 
 from app.telegram.bot import create_bot
 from app.monitoring.scheduler import MonitorScheduler
@@ -120,7 +121,11 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        *([settings.frontend_url] if settings.frontend_url else []),
     ],
+
+    # Allows Railway preview/production domains when FRONTEND_URL is not set.
+    allow_origin_regex=r"https://.*\.up\.railway\.app",
 
     allow_credentials=True,
 
@@ -148,6 +153,10 @@ app.include_router(
 
 app.include_router(
     catalog_router,
+)
+
+app.include_router(
+    settings_router,
 )
 
 

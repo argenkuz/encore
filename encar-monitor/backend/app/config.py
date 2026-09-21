@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     admin_telegram_id: int
     monitor_interval_minutes: int = 5
     log_level: str = "INFO"
+    frontend_url: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
