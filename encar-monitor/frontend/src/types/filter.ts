@@ -27,7 +27,6 @@ export interface Filter {
 }
 
 export interface FilterCreate {
-  telegram_id: number;
 
   name: string;
   enabled?: boolean;
