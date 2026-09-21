@@ -157,18 +157,9 @@ class CatalogService:
         # 4. ENCAR
         # -------------------------------------------------
 
-        # ВАЖНО:
-        # Должно быть:
-        #
-        # Hidden.N._.CarType.Y.
-        #
-        # а не:
-        #
-        # Hidden.N.._.CarType.Y.
-
         query = (
-            f"(And.Hidden.N._.CarType.Y._."
-            f"Manufacturer.{manufacturer}.)"
+            f"(And.Hidden.N._.(C.CarType.N._."
+            f"Manufacturer.{manufacturer}.))"
         )
 
 
@@ -413,9 +404,9 @@ class CatalogService:
         # -------------------------------------------------
 
         query = (
-            f"(And.Hidden.N._.CarType.Y._."
+            f"(And.Hidden.N._.(C.CarType.N._."
             f"Manufacturer.{manufacturer}._."
-            f"Model.{model}.)"
+            f"Model.{model}.))"
         )
 
 
