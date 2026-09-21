@@ -397,82 +397,52 @@ class CatalogService:
         manufacturer = manufacturer.strip()
         model = model.strip()
 
-
         if not manufacturer or not model:
             return []
 
-
-        cache_key = (
-            manufacturer,
-            model,
-        )
-
+        cache_key = (manufacturer, model)
 
         # -------------------------------------------------
         # 1. RAM CACHE
         # -------------------------------------------------
-
         if cache_key in self._badges_cache:
-
-            return self._badges_cache[
-                cache_key
-            ]
-
+            return self._badges_cache[cache_key]
 
         # -------------------------------------------------
         # 2. FIND MANUFACTURER
         # -------------------------------------------------
-
         manufacturer_row = db.scalar(
-            select(CatalogManufacturer)
-            .where(
-                CatalogManufacturer.name
-                == manufacturer
+            select(CatalogManufacturer).where(
+                CatalogManufacturer.name == manufacturer
             )
         )
-
 
         if not manufacturer_row:
             return []
 
-
         # -------------------------------------------------
         # 3. FIND MODEL
         # -------------------------------------------------
-
         model_row = db.scalar(
-            select(CatalogModel)
-            .where(
-                CatalogModel.manufacturer_id
-                == manufacturer_row.id,
-                CatalogModel.name
-                == model,
+            select(CatalogModel).where(
+                CatalogModel.manufacturer_id == manufacturer_row.id,
+                CatalogModel.name == model,
             )
         )
-
 
         if not model_row:
             return []
 
-
         # -------------------------------------------------
         # 4. SQLITE
         # -------------------------------------------------
-
         badges = db.scalars(
             select(CatalogBadge)
-            .where(
-                CatalogBadge.model_id
-                == model_row.id
-            )
-            .order_by(
-                CatalogBadge.name
-            )
+            .where(CatalogBadge.model_id == model_row.id)
+            .order_by(CatalogBadge.name)
         ).all()
 
-
         if badges:
-
             result = [
                 {
                     "id": badge.id,
@@ -481,106 +451,16 @@ class CatalogService:
                 }
                 for badge in badges
             ]
-
-
-            self._badges_cache[
-                cache_key
-            ] = result
-
-
+            self._badges_cache[cache_key] = result
             return result
 
-
         # -------------------------------------------------
         # 5. ENCAR
         # -------------------------------------------------
-
-        print(
-            f"Loading badges from Encar: "
-            f"{manufacturer} / {model}"
-        )
-
-
-        raw_results: list[dict] = []
-
-
-        for start in range(
-            0,
-            MAX_RESULTS,
-            PAGE_SIZE,
-        ):
-
-            batch = await self._search_model(
-                manufacturer=manufacturer,
-                model=model,
-                start=start,
-                count=PAGE_SIZE,
-            )
-
-
-            if not batch:
-                break
-
-
-            raw_results.extend(batch)
-
-
-            if len(batch) < PAGE_SIZE:
-                break
-
-
-        # -------------------------------------------------
-        # 6. BUILD BADGE COUNTS
-        # -------------------------------------------------
-
-        badge_counts: dict[
-            str,
-            int,
-        ] = {}
-
-
-        for car in raw_results:
-
-            badge_name = car.get(
-                "Badge"
-            )
-
-
-            if not badge_name:
-                continue
-
-
-            badge_name = str(
-                badge_name
-            ).strip()
-
-
-            if not badge_name:
-                continue
-
-
-            badge_counts[
-                badge_name
-            ] = (
-                badge_counts.get(
-                    badge_name,
-                    0,
-                )
-                + 1
-            )
-
-
-        # ----------------------        # -------------------------------------------------
-        # 5. ENCAR
-        # -------------------------------------------------
-        #
-        # Do NOT put Model into Encar's q here.
-        # Encar accepts the manufacturer query reliably, while
-        # model names such as "M5 (G90)" are not consistently
-        # accepted by the search grammar. We therefore fetch the
-        # manufacturer's current listings and filter the exact
-        # catalog model in Python.
-
+        # Do not put Model into q. Model names containing
+        # parentheses can break Encar's query parser.
+        # Search the manufacturer and filter the selected model
+        # locally using the Model field returned by Encar.
         query = (
             f"(And.Hidden.N._."
             f"(C.CarType.N._."
@@ -591,22 +471,12 @@ class CatalogService:
             f"Loading badges from Encar: "
             f"{manufacturer} / {model}"
         )
+        print(f"Encar query: {query}")
 
-        print(
-            f"Encar query: {query}"
-        )
-
+        normalized_requested_model = self._normalize_model(model)
         raw_results: list[dict] = []
 
-        normalized_requested_model = (
-            self._normalize_model(model)
-        )
-
-        for start in range(
-            0,
-            MAX_RESULTS,
-            PAGE_SIZE,
-        ):
+        for start in range(0, MAX_RESULTS, PAGE_SIZE):
             batch = await self.client.search(
                 query=query,
                 start=start,
@@ -617,21 +487,72 @@ class CatalogService:
                 break
 
             for car in batch:
-                if self._normalize_model(
-                    car.get("Model")
-                ) == normalized_requested_model:
+                if (
+                    self._normalize_model(car.get("Model"))
+                    == normalized_requested_model
+                ):
                     raw_results.append(car)
 
             if len(batch) < PAGE_SIZE:
                 break
-----
+
+        # -------------------------------------------------
+        # 6. BUILD BADGE COUNTS
+        # -------------------------------------------------
+        badge_counts: dict[str, int] = {}
+
+        for car in raw_results:
+            badge_name = car.get("Badge")
+
+            if not badge_name:
+                # Some Encar responses may expose the badge under
+                # another descriptive field. Keep this defensive.
+                badge_name = car.get("BadgeName")
+
+            if not badge_name:
+                continue
+
+            badge_name = str(badge_name).strip()
+
+            if not badge_name:
+                continue
+
+            badge_counts[badge_name] = (
+                badge_counts.get(badge_name, 0) + 1
+            )
+
+        # -------------------------------------------------
+        # 7. SAVE TO SQLITE
+        # -------------------------------------------------
+        result: list[dict] = []
+
+        for name, count in sorted(
+            badge_counts.items(),
+            key=lambda item: item[0],
+        ):
+            badge = CatalogBadge(
+                model_id=model_row.id,
+                name=name,
+                count=count,
+            )
+
+            db.add(badge)
+            db.flush()
+
+            result.append(
+                {
+                    "id": badge.id,
+                    "name": badge.name,
+                    "count": badge.count,
+                }
+            )
+
+        db.commit()
+
+        # -------------------------------------------------
         # 8. RAM CACHE
         # -------------------------------------------------
-
-        self._badges_cache[
-            cache_key
-        ] = result
-
+        self._badges_cache[cache_key] = result
 
         return result
 
