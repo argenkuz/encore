@@ -13,7 +13,10 @@ from app.encar.client import EncarClient
 
 
 PAGE_SIZE = 500
-# Encar's internal search endpoint is sensitive to large page sizes.\n# Use a smaller page size for badge discovery.\nBADGE_PAGE_SIZE = 100\nMAX_RESULTS = 5000
+# Encar's internal search endpoint is sensitive to large page sizes.
+# Use a smaller page size for badge discovery.
+BADGE_PAGE_SIZE = 100
+MAX_RESULTS = 5000
 
 
 class CatalogService:
