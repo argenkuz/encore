@@ -6,6 +6,7 @@ from fastapi import (
 
 from sqlalchemy.orm import Session
 
+from app.auth import authenticated_user
 from app.database import get_db
 from app.encar.catalog import CatalogService
 
@@ -25,6 +26,7 @@ catalog_service = CatalogService()
 
 @router.get("/manufacturers")
 def get_manufacturers(
+    _user = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
     return catalog_service.get_manufacturers(
@@ -64,6 +66,7 @@ async def get_badges(
     manufacturer: str,
     model: str,
     db: Session = Depends(get_db),
+    _user = Depends(authenticated_user),
 ):
 
     if not manufacturer.strip():
