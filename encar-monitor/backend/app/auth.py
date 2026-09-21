@@ -105,3 +105,19 @@ def get_current_user(
         db.refresh(user)
 
     return user
+
+
+from fastapi import Depends
+from app.database import get_db
+
+
+def authenticated_user(
+    db: Session = Depends(get_db),
+    init_data: str | None = Header(default=None, alias="X-Telegram-Init-Data"),
+    dev_telegram_id: str | None = Header(default=None, alias="X-Dev-Telegram-Id"),
+) -> User:
+    return get_current_user(
+        db=db,
+        init_data=init_data,
+        dev_telegram_id=dev_telegram_id,
+    )
