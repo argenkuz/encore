@@ -272,6 +272,7 @@ export default function HomePage({
         const created = await createFilter({
           telegram_id: telegramId,
           name: filter.name,
+          enabled: filter.enabled,
           manufacturer: filter.manufacturer,
           model_group: filter.model_group,
           model: filter.model,
