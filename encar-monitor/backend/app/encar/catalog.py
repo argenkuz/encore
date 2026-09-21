@@ -196,7 +196,7 @@ class CatalogService:
             raw_results.extend(batch)
 
 
-            if len(batch) < page_size:
+            if len(batch) < PAGE_SIZE:
                 break
 
 
