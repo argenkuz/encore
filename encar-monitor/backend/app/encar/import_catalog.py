@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 
 import httpx
@@ -96,44 +97,148 @@ def parse_manufacturers(html: str) -> list[dict]:
     return list(unique.values())
 
 
+def _add_model_name(value: object, result: list[str], seen: set[str]) -> None:
+    if not isinstance(value, str):
+        return
+
+    name = " ".join(value.split()).strip()
+
+    if not name or len(name) > 255:
+        return
+
+    # Служебные подписи, которые иногда встречаются в каталоге.
+    if name.lower() in {"model", "models", "모델", "전체", "all"}:
+        return
+
+    if name not in seen:
+        seen.add(name)
+        result.append(name)
+
+
+def _extract_models_from_json(
+    payload: object,
+) -> list[str]:
+    """
+    Encar иногда отдаёт каталог моделей как JSON, а не HTML.
+    Структура ответа может меняться, поэтому разбираем несколько
+    распространённых вариантов вместо привязки к одному JSON-пути.
+    """
+
+    result: list[str] = []
+    seen: set[str] = set()
+
+    model_keys = {
+        "model",
+        "modelname",
+        "modelnm",
+        "model_name",
+        "modelnameko",
+        "modelnmko",
+    }
+
+    def walk(value: object, in_model_context: bool = False) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                key_lower = str(key).lower().replace("-", "_")
+
+                is_model_key = key_lower in model_keys
+                child_context = (
+                    in_model_context
+                    or "model" in key_lower
+                )
+
+                if is_model_key:
+                    if isinstance(child, str):
+                        _add_model_name(
+                            child,
+                            result,
+                            seen,
+                        )
+                    elif isinstance(child, list):
+                        for item in child:
+                            _add_model_name(
+                                item,
+                                result,
+                                seen,
+                            )
+
+                # В структурах вида models -> [{name: ...}, ...]
+                if (
+                    in_model_context
+                    and key_lower in {"name", "label", "title"}
+                ):
+                    _add_model_name(
+                        child,
+                        result,
+                        seen,
+                    )
+
+                walk(
+                    child,
+                    child_context,
+                )
+
+        elif isinstance(value, list):
+            for item in value:
+                walk(item, in_model_context)
+
+    walk(payload)
+
+    return result
+
+
 def parse_models(html: str) -> list[str]:
     """
-    Получает список моделей со страницы конкретного производителя.
+    Разбирает каталог моделей Encar.
+
+    Поддерживает два формата:
+    1. JSON-ответ model.json;
+    2. HTML со ссылками каталога.
+
+    Это важно, потому что Encar может отдавать разные представления
+    одного и того же каталога в зависимости от запроса/окружения.
     """
 
-    soup = BeautifulSoup(html, "html.parser")
+    # ---------------------------------------------------------
+    # 1. JSON
+    # ---------------------------------------------------------
 
-    models = []
+    try:
+        payload = json.loads(html)
+
+        models = _extract_models_from_json(payload)
+
+        if models:
+            return models
+
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # ---------------------------------------------------------
+    # 2. HTML fallback
+    # ---------------------------------------------------------
+
+    soup = BeautifulSoup(
+        html,
+        "html.parser",
+    )
+
+    models: list[str] = []
+    seen: set[str] = set()
 
     for link in soup.find_all("a"):
-        name = link.get_text(" ", strip=True)
-
-        if not name:
-            continue
-
-        # На странице моделей названия находятся
-        # в ссылках каталога.
-        #
-        # Отбрасываем служебные ссылки.
-        href = link.get("href", "")
+        href = str(link.get("href", ""))
 
         if "model" not in href.lower():
             continue
 
-        models.append(name)
+        _add_model_name(
+            link.get_text(" ", strip=True),
+            models,
+            seen,
+        )
 
-    # Уникальные модели
-    result = []
-    seen = set()
-
-    for model in models:
-        if model in seen:
-            continue
-
-        seen.add(model)
-        result.append(model)
-
-    return result
+    return models
 
 
 async def import_catalog() -> None:
