@@ -143,10 +143,9 @@ def get_filter(
 )
 def create_filter(
     data: FilterCreate,
+    user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
-
-    user = user
 
     if not data.name.strip():
         raise HTTPException(
@@ -198,7 +197,6 @@ def update_filter(
     db: Session = Depends(get_db),
 ):
 
-    user = user
 
     filter_ = db.scalar(
         select(Filter).where(
@@ -246,10 +244,9 @@ def update_filter(
 )
 def delete_filter(
     filter_id: int,
+    user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
-
-    user = user
 
     filter_ = db.scalar(
         select(Filter).where(
