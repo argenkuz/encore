@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth import authenticated_user
 from app.database import get_db
 from app.models import Filter, User
 
@@ -14,8 +15,6 @@ router = APIRouter(
 
 
 class FilterCreate(BaseModel):
-    telegram_id: int
-
     name: str
     enabled: bool = True
 
@@ -94,45 +93,14 @@ class FilterResponse(BaseModel):
     region: str | None
 
 
-def get_user(
-    telegram_id: int,
-    db: Session,
-) -> User:
-
-    user = db.scalar(
-        select(User).where(
-            User.telegram_id == telegram_id
-        )
-    )
-
-    if not user:
-        raise HTTPException(
-            status_code=403,
-            detail="User does not have access",
-        )
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=403,
-            detail="User is blocked",
-        )
-
-    return user
-
-
 @router.get(
     "",
     response_model=list[FilterResponse],
 )
 def get_filters(
-    telegram_id: int,
+    user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
-
-    user = get_user(
-        telegram_id,
-        db,
-    )
 
     filters = db.scalars(
         select(Filter)
@@ -149,14 +117,9 @@ def get_filters(
 )
 def get_filter(
     filter_id: int,
-    telegram_id: int,
+    user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
-
-    user = get_user(
-        telegram_id,
-        db,
-    )
 
     filter_ = db.scalar(
         select(Filter).where(
@@ -183,10 +146,7 @@ def create_filter(
     db: Session = Depends(get_db),
 ):
 
-    user = get_user(
-        data.telegram_id,
-        db,
-    )
+    user = user
 
     if not data.name.strip():
         raise HTTPException(
@@ -234,14 +194,11 @@ def create_filter(
 def update_filter(
     filter_id: int,
     data: FilterUpdate,
-    telegram_id: int,
+    user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
 
-    user = get_user(
-        telegram_id,
-        db,
-    )
+    user = user
 
     filter_ = db.scalar(
         select(Filter).where(
@@ -289,14 +246,10 @@ def update_filter(
 )
 def delete_filter(
     filter_id: int,
-    telegram_id: int,
     db: Session = Depends(get_db),
 ):
 
-    user = get_user(
-        telegram_id,
-        db,
-    )
+    user = user
 
     filter_ = db.scalar(
         select(Filter).where(
