@@ -64,7 +64,7 @@ class CatalogService:
 
         # X7 (G07) -> X7
         base_model = re.sub(
-            r"s*([^)]*)",
+            r"\\s*\\([^)]*\\)",
             "",
             model,
         ).strip()
@@ -88,7 +88,7 @@ class CatalogService:
         value = str(value).strip().lower()
 
         return re.sub(
-            r"s+",
+            r"\\s+",
             " ",
             value,
         )
