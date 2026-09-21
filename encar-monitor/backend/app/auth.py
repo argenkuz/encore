@@ -4,7 +4,7 @@ import json
 import time
 from urllib.parse import parse_qsl
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -29,8 +29,7 @@ def validate_init_data(init_data: str) -> dict:
     if time.time() - auth_date > settings.telegram_auth_max_age_seconds:
         raise HTTPException(status_code=401, detail="Telegram authorization expired")
 
-    data_check_string = "
-".join(
+    data_check_string = "\\n".join(
         f"{key}={value}"
         for key, value in sorted(values.items())
     )
@@ -107,7 +106,6 @@ def get_current_user(
     return user
 
 
-from fastapi import Depends
 from app.database import get_db
 
 
