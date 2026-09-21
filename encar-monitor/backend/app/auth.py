@@ -29,7 +29,7 @@ def validate_init_data(init_data: str) -> dict:
     if time.time() - auth_date > settings.telegram_auth_max_age_seconds:
         raise HTTPException(status_code=401, detail="Telegram authorization expired")
 
-    data_check_string = "\\n".join(
+    data_check_string = "\n".join(
         f"{key}={value}"
         for key, value in sorted(values.items())
     )
