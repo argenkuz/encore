@@ -30,6 +30,7 @@ export interface FilterCreate {
   telegram_id: number;
 
   name: string;
+  enabled?: boolean;
 
   manufacturer?: string | null;
   model_group?: string | null;
