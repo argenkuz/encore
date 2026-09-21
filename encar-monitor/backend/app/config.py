@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     monitor_interval_minutes: int = 5
     log_level: str = "INFO"
     frontend_url: str | None = None
+    environment: str = "production"
+    telegram_auth_max_age_seconds: int = 86400
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",

@@ -20,12 +20,8 @@ import type {
 
 
 interface FilterFormProps {
-  telegramId: number;
-
-  filter?: Filter | null;
-
+  filter: Filter | null;
   onSaved: () => void;
-
   onCancel: () => void;
 }
 
@@ -112,7 +108,6 @@ const FUEL_TYPES = [
    ========================================================= */
 
 export default function FilterForm({
-  telegramId,
   filter,
   onSaved,
   onCancel,
@@ -653,18 +648,11 @@ export default function FilterForm({
         };
 
 
-        await updateFilter(
-          filter.id,
-          telegramId,
-          data,
-        );
+        await updateFilter(filter.id, data);
 
       } else {
 
         const data: FilterCreate = {
-
-          telegram_id:
-            telegramId,
 
           name:
             name.trim(),

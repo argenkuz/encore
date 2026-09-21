@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth import authenticated_user
 from app.config import settings
 from app.database import get_db
 from app.models import MonitorSettings, User
@@ -30,26 +31,6 @@ class MonitorSettingsResponse(BaseModel):
     interval_minutes: int
     last_run_at: datetime | None
     next_run_at: datetime | None
-
-
-def get_user(telegram_id: int, db: Session) -> User:
-    user = db.scalar(
-        select(User).where(User.telegram_id == telegram_id)
-    )
-
-    if not user:
-        raise HTTPException(
-            status_code=403,
-            detail="User does not have access",
-        )
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=403,
-            detail="User is blocked",
-        )
-
-    return user
 
 
 def get_or_create_settings(
@@ -86,11 +67,9 @@ def get_or_create_settings(
     response_model=MonitorSettingsResponse,
 )
 def get_monitor_settings(
-    telegram_id: int,
+    user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
-    user = get_user(telegram_id, db)
-
     return get_or_create_settings(user, db)
 
 
@@ -100,10 +79,9 @@ def get_monitor_settings(
 )
 def update_monitor_settings(
     data: MonitorSettingsUpdate,
-    telegram_id: int,
+    user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
-    user = get_user(telegram_id, db)
     monitor_settings = get_or_create_settings(user, db)
 
     if data.interval_minutes is not None:
