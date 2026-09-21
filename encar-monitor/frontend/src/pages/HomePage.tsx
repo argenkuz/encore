@@ -55,7 +55,6 @@ function formatNextRun(value: string | null) {
 
 
 export default function HomePage({
-  telegramId,
   onCreateFilter,
   onEditFilter,
 }: HomePageProps) {
@@ -110,7 +109,7 @@ export default function HomePage({
       loadFilters(),
       loadMonitorSettings(),
     ]);
-  }, [telegramId]);
+  }, []);
 
   async function handleToggle(filter: Filter) {
     try {
