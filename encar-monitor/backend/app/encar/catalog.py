@@ -125,62 +125,6 @@ class CatalogService:
         return False
 
 
-    async def _search_model(
-        self,
-        manufacturer: str,
-        model: str,
-        start: int,
-        count: int,
-    ) -> list[dict]:
-        """
-        Search a model while gracefully handling Encar's parser
-        rejecting parentheses in model names.
-        """
-        last_error = None
-
-        for query in self._model_query_variants(
-            manufacturer,
-            model,
-        ):
-            try:
-                print(
-                    f"Encar query: {query}"
-                )
-
-                batch = await self.client.search(
-                    query=query,
-                    start=start,
-                    count=count,
-                )
-
-                # If this was a fallback query, keep only the
-                # originally selected Encar model.
-                if query != self._model_query_variants(
-                    manufacturer,
-                    model,
-                )[0]:
-                    batch = [
-                        car
-                        for car in batch
-                        if self._model_matches(
-                            car,
-                            model,
-                        )
-                    ]
-
-                return batch
-
-            except Exception as exc:
-                last_error = exc
-                print(
-                    f"Encar query failed, trying next variant: "
-                    f"{exc}"
-                )
-
-        if last_error is not None:
-            raise last_error
-
-        return []
 
 
     # =====================================================
@@ -626,43 +570,61 @@ class CatalogService:
             )
 
 
+        # ----------------------        # -------------------------------------------------
+        # 5. ENCAR
         # -------------------------------------------------
-        # 7. SAVE TO SQLITE
-        # -------------------------------------------------
+        #
+        # Do NOT put Model into Encar's q here.
+        # Encar accepts the manufacturer query reliably, while
+        # model names such as "M5 (G90)" are not consistently
+        # accepted by the search grammar. We therefore fetch the
+        # manufacturer's current listings and filter the exact
+        # catalog model in Python.
 
-        result: list[dict] = []
+        query = (
+            f"(And.Hidden.N._."
+            f"(C.CarType.N._."
+            f"Manufacturer.{manufacturer}.))"
+        )
 
+        print(
+            f"Loading badges from Encar: "
+            f"{manufacturer} / {model}"
+        )
 
-        for name, count in sorted(
-            badge_counts.items(),
-            key=lambda item: item[0],
+        print(
+            f"Encar query: {query}"
+        )
+
+        raw_results: list[dict] = []
+
+        normalized_requested_model = (
+            self._normalize_model(model)
+        )
+
+        for start in range(
+            0,
+            MAX_RESULTS,
+            PAGE_SIZE,
         ):
-
-            badge = CatalogBadge(
-                model_id=model_row.id,
-                name=name,
-                count=count,
+            batch = await self.client.search(
+                query=query,
+                start=start,
+                count=PAGE_SIZE,
             )
 
+            if not batch:
+                break
 
-            db.add(badge)
+            for car in batch:
+                if self._normalize_model(
+                    car.get("Model")
+                ) == normalized_requested_model:
+                    raw_results.append(car)
 
-            db.flush()
-
-
-            result.append(
-                {
-                    "id": badge.id,
-                    "name": badge.name,
-                    "count": badge.count,
-                }
-            )
-
-
-        db.commit()
-
-
-        # -------------------------------------------------
+            if len(batch) < PAGE_SIZE:
+                break
+----
         # 8. RAM CACHE
         # -------------------------------------------------
 
