@@ -11,6 +11,7 @@ from app.database import init_db
 from app.api.filters import router as filters_router
 from app.api.users import router as users_router
 from app.api.catalog import router as catalog_router
+from app.api.settings import router as settings_router
 
 from app.telegram.bot import create_bot
 from app.monitoring.scheduler import MonitorScheduler
@@ -148,6 +149,10 @@ app.include_router(
 
 app.include_router(
     catalog_router,
+)
+
+app.include_router(
+    settings_router,
 )
 
 
