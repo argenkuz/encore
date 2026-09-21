@@ -121,7 +121,11 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        *([settings.frontend_url] if settings.frontend_url else []),
     ],
+
+    # Allows Railway preview/production domains when FRONTEND_URL is not set.
+    allow_origin_regex=r"https://.*\\.up\\.railway\\.app",
 
     allow_credentials=True,
 
