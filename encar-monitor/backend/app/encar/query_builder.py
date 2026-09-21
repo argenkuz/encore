@@ -5,17 +5,27 @@ class EncarQueryBuilder:
 
     @staticmethod
     def build(filter_: Filter) -> str:
-        """Build an Encar search query from the saved filter."""
+        """Build Encar's general Encar search query."""
 
-        leaf_conditions: list[str] = []
+        conditions: list[str] = []
+
+        if filter_.manufacturer:
+            conditions.append(
+                f"Manufacturer.{filter_.manufacturer}"
+            )
+
+        if filter_.model:
+            conditions.append(
+                f"Model.{filter_.model}"
+            )
 
         if filter_.badge:
-            leaf_conditions.append(
+            conditions.append(
                 f"Badge.{filter_.badge}"
             )
 
         if filter_.fuel_type:
-            leaf_conditions.append(
+            conditions.append(
                 f"FuelType.{filter_.fuel_type}"
             )
 
@@ -33,7 +43,7 @@ class EncarQueryBuilder:
                 if filter_.price_to is not None
                 else 999999
             )
-            leaf_conditions.append(
+            conditions.append(
                 f"Price.{price_from}_{price_to}"
             )
 
@@ -51,30 +61,12 @@ class EncarQueryBuilder:
                 if filter_.mileage_to is not None
                 else 999999
             )
-            leaf_conditions.append(
+            conditions.append(
                 f"Mileage.{mileage_from}_{mileage_to}"
             )
 
-        conditions = []
-
-        if filter_.manufacturer:
-            conditions.append(
-                f"Manufacturer.{filter_.manufacturer}"
-            )
-
-        if filter_.model:
-            conditions.append(
-                f"Model.{filter_.model}"
-            )
-
-        conditions.extend(leaf_conditions)
-
         if conditions:
-            condition = (
-                f"CarType.N._."
-                f"{'._.'.join(conditions)}."
-            )
-        else:
-            condition = "CarType.N."
+            condition = "._.".join(conditions)
+            return f"(And.Hidden.N._.CarType.Y._.{condition}.)"
 
-        return f"(And.Hidden.N._.(C.{condition}))"
+        return "(And.Hidden.N._.CarType.Y.)"
