@@ -258,6 +258,8 @@ async def fetch_models_from_search(
     result: list[str] = []
     seen: set[str] = set()
 
+    no_new_pages = 0
+
     for start in range(0, max_results, page_size):
         try:
             batch = await encar_client.search(
@@ -271,6 +273,8 @@ async def fetch_models_from_search(
 
         if not batch:
             break
+
+        before_count = len(result)
 
         for car in batch:
             model_name = car.get("Model")
@@ -286,6 +290,16 @@ async def fetch_models_from_search(
             if model_name not in seen:
                 seen.add(model_name)
                 result.append(model_name)
+
+        if len(result) == before_count:
+            no_new_pages += 1
+        else:
+            no_new_pages = 0
+
+        # Если две страницы подряд не дали новых моделей,
+        # дальше почти наверняка идут только дубликаты.
+        if no_new_pages >= 2:
+            break
 
         if len(batch) < page_size:
             break
