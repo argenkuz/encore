@@ -125,7 +125,7 @@ app.add_middleware(
     ],
 
     # Allows Railway preview/production domains when FRONTEND_URL is not set.
-    allow_origin_regex=r"https://.*\\.up\\.railway\\.app",
+    allow_origin_regex=r"https://.*\.up\.railway\.app",
 
     allow_credentials=True,
 
