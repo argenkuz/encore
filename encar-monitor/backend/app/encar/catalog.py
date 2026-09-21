@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import re
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -35,96 +33,6 @@ class CatalogService:
             tuple[str, str],
             list[dict],
         ] = {}
-
-
-    # =====================================================
-    # ENCAR QUERY HELPERS
-    # =====================================================
-
-    @staticmethod
-    def _model_query_variants(
-        manufacturer: str,
-        model: str,
-    ) -> list[str]:
-        """
-        Encar's search grammar is hierarchical:
-        CarType -> Manufacturer -> Model.
-
-        Keep the model name exactly as it exists in the catalog.
-        Parentheses in names such as "X5 (G05)" are valid values;
-        the important part is using Encar's nested C.* grammar.
-        """
-        queries: list[str] = []
-
-        exact_query = (
-            f"(And.Hidden.N._."
-            f"(C.CarType.N._."
-            f"(C.Manufacturer.{manufacturer}._."
-            f"(C.Model.{model}.))))"
-        )
-        queries.append(exact_query)
-
-        # Some catalog names contain a generation in parentheses.
-        # Use the base model only as a secondary fallback.
-        base_model = re.sub(
-            r"\s*\([^)]*\)",
-            "",
-            model,
-        ).strip()
-
-        if base_model and base_model != model:
-            queries.append(
-                f"(And.Hidden.N._."
-                f"(C.CarType.N._."
-                f"(C.Manufacturer.{manufacturer}._."
-                f"(C.Model.{base_model}.))))"
-            )
-
-        return list(dict.fromkeys(queries))
-
-    @staticmethod
-    def _normalize_model(value: object) -> str:
-        if value is None:
-            return ""
-
-        value = str(value).strip().lower()
-
-        return re.sub(
-            r"\s+",
-            " ",
-            value,
-        )
-
-
-    @classmethod
-    def _model_matches(
-        cls,
-        car: dict,
-        requested_model: str,
-    ) -> bool:
-        """
-        Catalog import stores the Encar Model field, so exact matching
-        is preferred. For fallback queries such as Model.X7, accept
-        the exact catalog model or its normalized equivalent.
-        """
-        requested = cls._normalize_model(
-            requested_model
-        )
-
-        candidates = [
-            car.get("Model"),
-            car.get("ModelName"),
-        ]
-
-        for candidate in candidates:
-            normalized = cls._normalize_model(candidate)
-
-            if normalized == requested:
-                return True
-
-        return False
-
-
 
 
     # =====================================================
