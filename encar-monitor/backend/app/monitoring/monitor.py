@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
+from app.config import settings
 from app.database import SessionLocal
 from app.encar.client import EncarClient
 from app.encar.parser import parse_car
@@ -116,7 +117,7 @@ class EncarMonitor:
                         MonitorSettings(
                             user_id=user.id,
                             enabled=True,
-                            interval_minutes=5,
+                            interval_minutes=settings.monitor_interval_minutes,
                             next_run_at=now,
                         )
                     )
