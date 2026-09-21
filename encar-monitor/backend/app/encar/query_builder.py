@@ -5,12 +5,7 @@ class EncarQueryBuilder:
 
     @staticmethod
     def build(filter_: Filter) -> str:
-        """Build Encar's hierarchical search query.
-
-        Verified Encar web-search examples use nested C groups for
-        Manufacturer -> Model. Leaf filters remain inside the selected
-        model group.
-        """
+        """Build an Encar search query from the saved filter."""
 
         leaf_conditions: list[str] = []
 
@@ -60,40 +55,25 @@ class EncarQueryBuilder:
                 f"Mileage.{mileage_from}_{mileage_to}"
             )
 
-        if filter_.model and filter_.manufacturer:
-            model_conditions = [
-                f"Model.{filter_.model}",
-                *leaf_conditions,
-            ]
-            model_group = "._.".join(model_conditions)
+        conditions = []
 
-            manufacturer_group = (
-                f"Manufacturer.{filter_.manufacturer}._."
-                f"(C.{model_group}.)"
+        if filter_.manufacturer:
+            conditions.append(
+                f"Manufacturer.{filter_.manufacturer}"
             )
 
+        if filter_.model:
+            conditions.append(
+                f"Model.{filter_.model}"
+            )
+
+        conditions.extend(leaf_conditions)
+
+        if conditions:
             condition = (
                 f"CarType.N._."
-                f"{manufacturer_group}."
+                f"{'._.'.join(conditions)}."
             )
-
-        elif filter_.manufacturer:
-            manufacturer_conditions = [
-                f"Manufacturer.{filter_.manufacturer}",
-                *leaf_conditions,
-            ]
-
-            condition = (
-                f"CarType.N._."
-                f"{'._.'.join(manufacturer_conditions)}."
-            )
-
-        elif leaf_conditions:
-            condition = (
-                f"CarType.N._."
-                f"{'._.'.join(leaf_conditions)}."
-            )
-
         else:
             condition = "CarType.N."
 
