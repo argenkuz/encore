@@ -381,7 +381,12 @@ class CatalogService:
         )
         print(f"Encar query: {query}")
 
-        normalized_requested_model = self._normalize_model(model)
+        def normalize_model(value: object) -> str:
+            if value is None:
+                return ""
+            return " ".join(str(value).strip().split()).casefold()
+
+        normalized_requested_model = normalize_model(model)
         raw_results: list[dict] = []
 
         for start in range(0, MAX_RESULTS, BADGE_PAGE_SIZE):
@@ -415,7 +420,7 @@ class CatalogService:
 
             for car in batch:
                 if (
-                    self._normalize_model(car.get("Model"))
+                    normalize_model(car.get("Model"))
                     == normalized_requested_model
                 ):
                     raw_results.append(car)
