@@ -47,22 +47,25 @@ class CatalogService:
         model: str,
     ) -> list[str]:
         """
-        Encar q uses parentheses as syntax characters.
-        Some real Encar model names contain parentheses, e.g. X7 (G07).
+        Encar's search grammar is hierarchical:
+        CarType -> Manufacturer -> Model.
 
-        Try the exact model first, then a safe base-model query.
-        The result is filtered back to the requested model in Python.
+        Keep the model name exactly as it exists in the catalog.
+        Parentheses in names such as "X5 (G05)" are valid values;
+        the important part is using Encar's nested C.* grammar.
         """
-        variants: list[str] = []
+        queries: list[str] = []
 
         exact_query = (
-            f"(And.Hidden.N._.(C.CarType.N._."
-            f"Manufacturer.{manufacturer}._."
-            f"Model.{model}.))"
+            f"(And.Hidden.N._."
+            f"(C.CarType.N._."
+            f"(C.Manufacturer.{manufacturer}._."
+            f"(C.Model.{model}.))))"
         )
-        variants.append(exact_query)
+        queries.append(exact_query)
 
-        # X7 (G07) -> X7
+        # Some catalog names contain a generation in parentheses.
+        # Use the base model only as a secondary fallback.
         base_model = re.sub(
             r"\s*\([^)]*\)",
             "",
@@ -70,15 +73,14 @@ class CatalogService:
         ).strip()
 
         if base_model and base_model != model:
-            variants.append(
-                f"(And.Hidden.N._.(C.CarType.N._."
-                f"Manufacturer.{manufacturer}._."
-                f"Model.{base_model}.))"
+            queries.append(
+                f"(And.Hidden.N._."
+                f"(C.CarType.N._."
+                f"(C.Manufacturer.{manufacturer}._."
+                f"(C.Model.{base_model}.))))"
             )
 
-        # Remove duplicate queries while preserving order.
-        return list(dict.fromkeys(variants))
-
+        return list(dict.fromkeys(queries))
 
     @staticmethod
     def _normalize_model(value: object) -> str:
