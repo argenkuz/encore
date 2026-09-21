@@ -21,7 +21,6 @@ import FilterCard from "../components/FilterCard";
 
 
 interface HomePageProps {
-  telegramId: number;
   onCreateFilter: () => void;
   onEditFilter: (filter: Filter) => void;
 }
@@ -73,7 +72,7 @@ export default function HomePage({
     try {
       setError("");
       setLoading(true);
-      const data = await getFilters(telegramId);
+      const data = await getFilters();
       setFilters(data);
     } catch (err) {
       console.error(err);
@@ -90,7 +89,7 @@ export default function HomePage({
   async function loadMonitorSettings() {
     try {
       setSettingsLoading(true);
-      const data = await getMonitorSettings(telegramId);
+      const data = await getMonitorSettings();
       setMonitorEnabled(data.enabled);
       setIntervalValue(data.interval_minutes);
       setNextRunAt(data.next_run_at);
@@ -119,7 +118,6 @@ export default function HomePage({
 
       const updated = await updateFilter(
         filter.id,
-        telegramId,
         { enabled: !filter.enabled },
       );
 
@@ -149,7 +147,7 @@ export default function HomePage({
 
     try {
       setError("");
-      await deleteFilter(filter.id, telegramId);
+      await deleteFilter(filter.id);
 
       setFilters((current) =>
         current.filter(
@@ -174,7 +172,6 @@ export default function HomePage({
       setSavingSettings(true);
 
       const data = await updateMonitorSettings(
-        telegramId,
         { interval_minutes: value },
       );
 
@@ -201,7 +198,6 @@ export default function HomePage({
       setSavingSettings(true);
 
       const data = await updateMonitorSettings(
-        telegramId,
         { enabled: !monitorEnabled },
       );
 
@@ -270,7 +266,6 @@ export default function HomePage({
         // Imported filters are created as new records.
         // This keeps the import additive and never mutates existing filters.
         const created = await createFilter({
-          telegram_id: telegramId,
           name: filter.name,
           enabled: filter.enabled,
           manufacturer: filter.manufacturer,
