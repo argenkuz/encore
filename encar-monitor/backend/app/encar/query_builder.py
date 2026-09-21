@@ -5,14 +5,13 @@ class EncarQueryBuilder:
 
     @staticmethod
     def build(filter_: Filter) -> str:
-        """Build a query using Encar's hierarchical C.* grammar.
+        """Build Encar's hierarchical search query.
 
-        Encar's web search examples nest Manufacturer -> Model.
-        This is important for model names containing parentheses such
-        as "M5 (G90)" and "X7 (G07)".
+        Verified Encar web-search examples use nested C groups for
+        Manufacturer -> Model. Leaf filters remain inside the selected
+        model group.
         """
 
-        # Build the inner conditions first.
         leaf_conditions: list[str] = []
 
         if filter_.badge:
@@ -61,42 +60,41 @@ class EncarQueryBuilder:
                 f"Mileage.{mileage_from}_{mileage_to}"
             )
 
-        # Encar's hierarchy:
-        # CarType -> Manufacturer -> Model -> leaf filters.
-        if filter_.model:
-            model_inner = [
-                f"Model.{filter_.model}"
+        if filter_.model and filter_.manufacturer:
+            model_conditions = [
+                f"Model.{filter_.model}",
+                *leaf_conditions,
             ]
+            model_group = "._.".join(model_conditions)
 
-            if leaf_conditions:
-                model_inner.extend(leaf_conditions)
-
-            model_group = "._.".join(model_inner)
-
-            manufacturer_inner = (
+            manufacturer_group = (
                 f"Manufacturer.{filter_.manufacturer}._."
                 f"(C.{model_group}.)"
             )
-        elif filter_.manufacturer:
-            manufacturer_inner = (
-                f"Manufacturer.{filter_.manufacturer}"
-            )
-            if not leaf_conditions:
-                manufacturer_inner = manufacturer_inner
-            else:
-                manufacturer_inner += (
-                    "._."
-                    + "._.".join(leaf_conditions)
-                )
-        else:
-            manufacturer_inner = " ".join(leaf_conditions)
 
-        if filter_.manufacturer or filter_.model:
             condition = (
                 f"CarType.N._."
-                f"{manufacturer_inner}."
+                f"{manufacturer_group}."
             )
+
+        elif filter_.manufacturer:
+            manufacturer_conditions = [
+                f"Manufacturer.{filter_.manufacturer}",
+                *leaf_conditions,
+            ]
+
+            condition = (
+                f"CarType.N._."
+                f"{'._.'.join(manufacturer_conditions)}."
+            )
+
+        elif leaf_conditions:
+            condition = (
+                f"CarType.N._."
+                f"{'._.'.join(leaf_conditions)}."
+            )
+
         else:
-            condition = f"CarType.N._.{manufacturer_inner}."
+            condition = "CarType.N."
 
         return f"(And.Hidden.N._.(C.{condition}))"
