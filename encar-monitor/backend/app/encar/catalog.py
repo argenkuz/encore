@@ -484,6 +484,14 @@ class CatalogService:
         return result
 
 
+    @staticmethod
+    def _normalize_model(value: object) -> str:
+        """Normalize Encar model labels before local catalog matching."""
+        if value is None:
+            return ""
+        return " ".join(str(value).strip().split()).casefold()
+
+
     # =====================================================
     # CACHE
     # =====================================================
