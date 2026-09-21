@@ -20,12 +20,8 @@ import type {
 
 
 interface FilterFormProps {
-  telegramId: number;
-
-  filter?: Filter | null;
-
+  filter: Filter | null;
   onSaved: () => void;
-
   onCancel: () => void;
 }
 
