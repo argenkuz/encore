@@ -269,26 +269,24 @@ export default function HomePage({
 
         // Imported filters are created as new records.
         // This keeps the import additive and never mutates existing filters.
-        const { id: _id, user_id: _userId, ...filterData } = filter;
-
         const created = await createFilter({
           telegram_id: telegramId,
-          name: filterData.name,
-          manufacturer: filterData.manufacturer,
-          model_group: filterData.model_group,
-          model: filterData.model,
-          badge: filterData.badge,
-          year_from: filterData.year_from,
-          month_from: filterData.month_from,
-          year_to: filterData.year_to,
-          month_to: filterData.month_to,
-          price_from: filterData.price_from,
-          price_to: filterData.price_to,
-          mileage_from: filterData.mileage_from,
-          mileage_to: filterData.mileage_to,
-          fuel_type: filterData.fuel_type,
-          transmission: filterData.transmission,
-          region: filterData.region,
+          name: filter.name,
+          manufacturer: filter.manufacturer,
+          model_group: filter.model_group,
+          model: filter.model,
+          badge: filter.badge,
+          year_from: filter.year_from,
+          month_from: filter.month_from,
+          year_to: filter.year_to,
+          month_to: filter.month_to,
+          price_from: filter.price_from,
+          price_to: filter.price_to,
+          mileage_from: filter.mileage_from,
+          mileage_to: filter.mileage_to,
+          fuel_type: filter.fuel_type,
+          transmission: filter.transmission,
+          region: filter.region,
         });
 
         setFilters((current) => [
