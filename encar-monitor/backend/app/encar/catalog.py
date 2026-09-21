@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -33,6 +35,150 @@ class CatalogService:
             tuple[str, str],
             list[dict],
         ] = {}
+
+
+    # =====================================================
+    # ENCAR QUERY HELPERS
+    # =====================================================
+
+    @staticmethod
+    def _model_query_variants(
+        manufacturer: str,
+        model: str,
+    ) -> list[str]:
+        """
+        Encar q uses parentheses as syntax characters.
+        Some real Encar model names contain parentheses, e.g. X7 (G07).
+
+        Try the exact model first, then a safe base-model query.
+        The result is filtered back to the requested model in Python.
+        """
+        variants: list[str] = []
+
+        exact_query = (
+            f"(And.Hidden.N._.(C.CarType.N._."
+            f"Manufacturer.{manufacturer}._."
+            f"Model.{model}.))"
+        )
+        variants.append(exact_query)
+
+        # X7 (G07) -> X7
+        base_model = re.sub(
+            r"s*([^)]*)",
+            "",
+            model,
+        ).strip()
+
+        if base_model and base_model != model:
+            variants.append(
+                f"(And.Hidden.N._.(C.CarType.N._."
+                f"Manufacturer.{manufacturer}._."
+                f"Model.{base_model}.))"
+            )
+
+        # Remove duplicate queries while preserving order.
+        return list(dict.fromkeys(variants))
+
+
+    @staticmethod
+    def _normalize_model(value: object) -> str:
+        if value is None:
+            return ""
+
+        value = str(value).strip().lower()
+
+        return re.sub(
+            r"s+",
+            " ",
+            value,
+        )
+
+
+    @classmethod
+    def _model_matches(
+        cls,
+        car: dict,
+        requested_model: str,
+    ) -> bool:
+        """
+        Catalog import stores the Encar Model field, so exact matching
+        is preferred. For fallback queries such as Model.X7, accept
+        the exact catalog model or its normalized equivalent.
+        """
+        requested = cls._normalize_model(
+            requested_model
+        )
+
+        candidates = [
+            car.get("Model"),
+            car.get("ModelName"),
+        ]
+
+        for candidate in candidates:
+            normalized = cls._normalize_model(candidate)
+
+            if normalized == requested:
+                return True
+
+        return False
+
+
+    async def _search_model(
+        self,
+        manufacturer: str,
+        model: str,
+        start: int,
+        count: int,
+    ) -> list[dict]:
+        """
+        Search a model while gracefully handling Encar's parser
+        rejecting parentheses in model names.
+        """
+        last_error = None
+
+        for query in self._model_query_variants(
+            manufacturer,
+            model,
+        ):
+            try:
+                print(
+                    f"Encar query: {query}"
+                )
+
+                batch = await self.client.search(
+                    query=query,
+                    start=start,
+                    count=count,
+                )
+
+                # If this was a fallback query, keep only the
+                # originally selected Encar model.
+                if query != self._model_query_variants(
+                    manufacturer,
+                    model,
+                )[0]:
+                    batch = [
+                        car
+                        for car in batch
+                        if self._model_matches(
+                            car,
+                            model,
+                        )
+                    ]
+
+                return batch
+
+            except Exception as exc:
+                last_error = exc
+                print(
+                    f"Encar query failed, trying next variant: "
+                    f"{exc}"
+                )
+
+        if last_error is not None:
+            raise last_error
+
+        return []
 
 
     # =====================================================
@@ -403,20 +549,9 @@ class CatalogService:
         # 5. ENCAR
         # -------------------------------------------------
 
-        query = (
-            f"(And.Hidden.N._.(C.CarType.N._."
-            f"Manufacturer.{manufacturer}._."
-            f"Model.{model}.))"
-        )
-
-
         print(
             f"Loading badges from Encar: "
             f"{manufacturer} / {model}"
-        )
-
-        print(
-            f"Encar query: {query}"
         )
 
 
@@ -429,8 +564,9 @@ class CatalogService:
             PAGE_SIZE,
         ):
 
-            batch = await self.client.search(
-                query=query,
+            batch = await self._search_model(
+                manufacturer=manufacturer,
+                model=model,
                 start=start,
                 count=PAGE_SIZE,
             )
