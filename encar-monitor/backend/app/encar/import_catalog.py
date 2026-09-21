@@ -241,6 +241,88 @@ def parse_models(html: str) -> list[str]:
     return models
 
 
+
+async def fetch_models_from_search(
+    encar_client,
+    manufacturer_name: str,
+    max_results: int = 5000,
+    page_size: int = 500,
+) -> list[str]:
+    """Build the model catalog from Encar's real search API."""
+
+    query = (
+        f"(And.Hidden.N._.CarType.Y._."
+        f"Manufacturer.{manufacturer_name}.)"
+    )
+
+    result: list[str] = []
+    seen: set[str] = set()
+
+    for start in range(0, max_results, page_size):
+        try:
+            batch = await encar_client.search(
+                query=query,
+                start=start,
+                count=page_size,
+            )
+        except Exception as error:
+            print(f"  Search API error: {error}")
+            break
+
+        if not batch:
+            break
+
+        for car in batch:
+            model_name = car.get("Model")
+
+            if not isinstance(model_name, str):
+                continue
+
+            model_name = " ".join(model_name.split()).strip()
+
+            if not model_name or len(model_name) > 255:
+                continue
+
+            if model_name not in seen:
+                seen.add(model_name)
+                result.append(model_name)
+
+        if len(batch) < page_size:
+            break
+
+    return result
+
+
+async def fetch_models(
+    http_client: httpx.AsyncClient,
+    encar_client,
+    manufacturer_name: str,
+    manufacturer_code: str,
+) -> list[str]:
+    """Use the legacy catalog first, then the working Search API."""
+
+    url = MODEL_URL.format(manufacturer_code)
+
+    try:
+        model_html = await get_page(http_client, url)
+        models = parse_models(model_html)
+
+        if models:
+            return models
+
+        print(
+            "  Legacy catalog endpoint returned no models; "
+            "falling back to Search API."
+        )
+    except Exception as error:
+        print(f"  Legacy catalog endpoint error: {error}")
+
+    return await fetch_models_from_search(
+        encar_client,
+        manufacturer_name,
+    )
+
+
 async def import_catalog() -> None:
     print()
     print("=" * 70)
@@ -253,6 +335,9 @@ async def import_catalog() -> None:
         timeout=30,
         follow_redirects=True,
     ) as client:
+        from app.encar.client import EncarClient
+
+        encar_client = EncarClient()
 
         # ---------------------------------------------------------
         # 1. Получаем производителей
@@ -346,13 +431,11 @@ async def import_catalog() -> None:
 
                 try:
 
-                    model_html = await get_page(
+                    models = await fetch_models(
                         client,
-                        url,
-                    )
-
-                    models = parse_models(
-                        model_html
+                        encar_client,
+                        name,
+                        code,
                     )
 
                 except Exception as error:
@@ -424,6 +507,7 @@ async def import_catalog() -> None:
 
         finally:
             db.close()
+            await encar_client.close()
 
 
 if __name__ == "__main__":
