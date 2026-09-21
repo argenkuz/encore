@@ -6,7 +6,7 @@ from app.database import SessionLocal
 from app.encar.client import EncarClient
 from app.encar.parser import parse_car
 from app.encar.query_builder import EncarQueryBuilder
-from app.models import Filter, MonitorSettings, SeenCar
+from app.models import Filter, MonitorSettings, SeenCar, User
 from app.monitoring.deduplication import is_new_car
 from app.telegram.notifications import TelegramNotifier
 
@@ -97,6 +97,32 @@ class EncarMonitor:
         db = SessionLocal()
 
         try:
+            # Backfill settings for users created before the settings table
+            # existed, so existing deployments keep monitoring automatically.
+            users = db.scalars(
+                select(User).where(User.is_active.is_(True))
+            ).all()
+
+            existing_settings = {
+                item.user_id
+                for item in db.scalars(
+                    select(MonitorSettings)
+                ).all()
+            }
+
+            for user in users:
+                if user.id not in existing_settings:
+                    db.add(
+                        MonitorSettings(
+                            user_id=user.id,
+                            enabled=True,
+                            interval_minutes=5,
+                            next_run_at=now,
+                        )
+                    )
+
+            db.commit()
+
             due_settings = db.scalars(
                 select(MonitorSettings)
                 .where(
