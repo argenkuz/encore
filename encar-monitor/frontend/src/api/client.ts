@@ -5,7 +5,19 @@ import type {
 } from "../types/filter";
 
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+async function apiFetch(path: string, init?: RequestInit) {
+  const response = await fetch(`${API_URL}${path}`, init);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.detail || "Ошибка API");
+  }
+
+  return response;
+}
+
 
 
 /* =========================================================
@@ -15,8 +27,8 @@ const API_URL = "http://127.0.0.1:8000";
 export async function getFilters(
   telegramId: number,
 ): Promise<Filter[]> {
-  const response = await fetch(
-    `${API_URL}/api/filters?telegram_id=${telegramId}`,
+  const response = await apiFetch(
+    `/api/filters?telegram_id=${telegramId}`,
   );
 
   if (!response.ok) {
@@ -33,8 +45,8 @@ export async function getFilter(
   filterId: number,
   telegramId: number,
 ): Promise<Filter> {
-  const response = await fetch(
-    `${API_URL}/api/filters/${filterId}?telegram_id=${telegramId}`,
+  const response = await apiFetch(
+    `/api/filters/${filterId}?telegram_id=${telegramId}`,
   );
 
   if (!response.ok) {
@@ -50,8 +62,8 @@ export async function getFilter(
 export async function createFilter(
   data: FilterCreate,
 ): Promise<Filter> {
-  const response = await fetch(
-    `${API_URL}/api/filters`,
+  const response = await apiFetch(
+    `/api/filters`,
     {
       method: "POST",
 
@@ -84,8 +96,8 @@ export async function updateFilter(
   telegramId: number,
   data: FilterUpdate,
 ): Promise<Filter> {
-  const response = await fetch(
-    `${API_URL}/api/filters/${filterId}?telegram_id=${telegramId}`,
+  const response = await apiFetch(
+    `/api/filters/${filterId}?telegram_id=${telegramId}`,
     {
       method: "PATCH",
 
@@ -117,8 +129,8 @@ export async function deleteFilter(
   filterId: number,
   telegramId: number,
 ): Promise<void> {
-  const response = await fetch(
-    `${API_URL}/api/filters/${filterId}?telegram_id=${telegramId}`,
+  const response = await apiFetch(
+    `/api/filters/${filterId}?telegram_id=${telegramId}`,
     {
       method: "DELETE",
     },
@@ -156,8 +168,8 @@ export interface CatalogItem {
 export async function getManufacturers(): Promise<
   CatalogItem[]
 > {
-  const response = await fetch(
-    `${API_URL}/api/catalog/manufacturers`,
+  const response = await apiFetch(
+    `/api/catalog/manufacturers`,
   );
 
   if (!response.ok) {
@@ -186,8 +198,8 @@ export async function getModels(
     manufacturer,
   );
 
-  const response = await fetch(
-    `${API_URL}/api/catalog/models?${params.toString()}`,
+  const response = await apiFetch(
+    `/api/catalog/models?${params.toString()}`,
   );
 
   if (!response.ok) {
@@ -228,8 +240,8 @@ export async function getBadges(
     model,
   );
 
-  const response = await fetch(
-    `${API_URL}/api/catalog/badges?${params.toString()}`,
+  const response = await apiFetch(
+    `/api/catalog/badges?${params.toString()}`,
   );
 
   if (!response.ok) {
@@ -243,6 +255,44 @@ export async function getBadges(
       "Не удалось загрузить комплектации",
     );
   }
+
+  return response.json();
+}
+
+export interface MonitorSettings {
+  enabled: boolean;
+  interval_minutes: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+}
+
+export async function getMonitorSettings(
+  telegramId: number,
+): Promise<MonitorSettings> {
+  const response = await apiFetch(
+    `/api/settings/monitor?telegram_id=${telegramId}`,
+  );
+
+  return response.json();
+}
+
+export async function updateMonitorSettings(
+  telegramId: number,
+  data: {
+    enabled?: boolean;
+    interval_minutes?: number;
+  },
+): Promise<MonitorSettings> {
+  const response = await apiFetch(
+    `/api/settings/monitor?telegram_id=${telegramId}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    },
+  );
 
   return response.json();
 }
