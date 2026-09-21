@@ -1133,3 +1133,27 @@ button:disabled {
   background: #20d878;
   box-shadow: 0 0 10px rgba(32, 216, 120, 0.35);
 }
+
+
+.auth-state {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+  padding: 28px;
+  border-radius: 18px;
+  text-align: center;
+}
+
+.auth-card span,
+.auth-card small {
+  color: #7f8da5;
+}
