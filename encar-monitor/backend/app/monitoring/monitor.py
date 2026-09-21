@@ -21,13 +21,11 @@ class EncarMonitor:
     async def check_filter(self, filter_: Filter) -> list:
         query = EncarQueryBuilder.build(filter_)
 
-        data = await self.encar_client.search(
+        raw_cars = await self.encar_client.search(
             query=query,
             start=0,
             count=20,
         )
-
-        raw_cars = data.get("SearchResults", [])
         new_cars = []
         db = SessionLocal()
 
