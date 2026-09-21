@@ -13,7 +13,7 @@ from app.encar.client import EncarClient
 
 
 PAGE_SIZE = 500
-MAX_RESULTS = 5000
+# Encar's internal search endpoint is sensitive to large page sizes.\n# Use a smaller page size for badge discovery.\nBADGE_PAGE_SIZE = 100\nMAX_RESULTS = 5000
 
 
 class CatalogService:
@@ -196,7 +196,7 @@ class CatalogService:
             raw_results.extend(batch)
 
 
-            if len(batch) < PAGE_SIZE:
+            if len(batch) < page_size:
                 break
 
 
@@ -384,12 +384,31 @@ class CatalogService:
         normalized_requested_model = self._normalize_model(model)
         raw_results: list[dict] = []
 
-        for start in range(0, MAX_RESULTS, PAGE_SIZE):
-            batch = await self.client.search(
-                query=query,
-                start=start,
-                count=PAGE_SIZE,
-            )
+        for start in range(0, MAX_RESULTS, BADGE_PAGE_SIZE):
+            batch = None
+            page_size = BADGE_PAGE_SIZE
+
+            # Encar can reject large pages for this catalog query.
+            # Retry the same page with smaller sizes before giving up.
+            for candidate_size in (BADGE_PAGE_SIZE, 50, 20):
+                try:
+                    batch = await self.client.search(
+                        query=query,
+                        start=start,
+                        count=candidate_size,
+                    )
+                    page_size = candidate_size
+                    break
+                except Exception as exc:
+                    print(
+                        f"Badge request failed "
+                        f"(start={start}, count={candidate_size}): {exc}"
+                    )
+
+            if batch is None:
+                # Catalog endpoints should not become a 500 just because
+                # Encar rejected a page request.
+                break
 
             if not batch:
                 break
