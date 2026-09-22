@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
@@ -10,6 +11,10 @@ from app.encar.query_builder import EncarQueryBuilder
 from app.models import Filter, MonitorSettings, SeenCar, User, TelegramRecipient
 from app.monitoring.deduplication import is_new_car
 from app.telegram.notifications import TelegramNotifier
+
+
+KOREA_TZ = ZoneInfo("Asia/Seoul")
+MAX_VIEWS = 50
 
 
 class EncarMonitor:
@@ -26,14 +31,53 @@ class EncarMonitor:
             start=0,
             count=20,
         )
+
         new_cars = []
         db = SessionLocal()
+        today_korea = datetime.now(KOREA_TZ).date()
 
         try:
             for raw_car in raw_cars:
-                car = parse_car(raw_car)
+                try:
+                    details = await self.encar_client.get_vehicle_details(
+                        int(raw_car["Id"])
+                    )
+                    car = parse_car(
+                        raw_car,
+                        details,
+                    )
+                except Exception as error:
+                    print(
+                        f"[Monitor] Failed to load Encar details "
+                        f"for {raw_car.get('Id')}: {error}"
+                    )
+                    continue
 
-                if is_new_car(db, filter_.id, car.encar_id):
+                if car.first_advertised_at is None:
+                    print(
+                        f"[Monitor] Skip {car.encar_id}: "
+                        f"no firstAdvertisedDateTime"
+                    )
+                    continue
+
+                if car.first_advertised_at.date() != today_korea:
+                    continue
+
+                if car.view_count is None:
+                    print(
+                        f"[Monitor] Skip {car.encar_id}: "
+                        f"no viewCount"
+                    )
+                    continue
+
+                if car.view_count > MAX_VIEWS:
+                    continue
+
+                if is_new_car(
+                    db,
+                    filter_.id,
+                    car.encar_id,
+                ):
                     new_cars.append(car)
                     db.add(
                         SeenCar(
@@ -126,8 +170,6 @@ class EncarMonitor:
         db = SessionLocal()
 
         try:
-            # Backfill settings for users created before the settings table
-            # existed, so existing deployments keep monitoring automatically.
             users = db.scalars(
                 select(User).where(User.is_active.is_(True))
             ).all()
