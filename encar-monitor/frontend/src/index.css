@@ -1218,17 +1218,28 @@ button:disabled {
   font-size: 12px;
 }
 
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .logout-button {
-  position: fixed;
-  top: 18px;
-  right: 18px;
-  z-index: 20;
-  padding: 8px 12px;
+  height: 40px;
+  padding: 0 13px;
   border: 1px solid #343b4c;
   border-radius: 8px;
   background: #12151d;
   color: #9aa7bb;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
+  transition: 0.15s ease;
+}
+
+.logout-button:hover {
+  background: #20242e;
+  color: #dce4f3;
 }
 
 
