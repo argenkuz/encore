@@ -21,54 +21,74 @@ async def import_manufacturers() -> None:
 
         all_manufacturers: dict[str, int] = {}
 
-        start = 0
+        # Encar separates domestic (Y) and imported (N) vehicles.
+        # Import both sets so the catalog does not silently lose
+        # manufacturers such as BMW, BYD, Toyota, Mercedes, etc.
+        for car_type in ("Y", "N"):
+            print()
+            print(f"Импорт производителей: CarType.{car_type}")
 
-        while start < MAX_RESULTS:
-            print(f"Запрашиваем объявления: {start} - {start + PAGE_SIZE}")
+            start = 0
 
-            query = "(And.Hidden.N._.CarType.Y.)"
-
-            result = await client.search(
-                query=query,
-                start=start,
-                count=PAGE_SIZE,
-            )
-
-            cars = result.get("SearchResults", [])
-
-            if not cars:
-                print("Объявления закончились.")
-                break
-
-            for car in cars:
-                manufacturer = car.get("Manufacturer")
-
-                if not manufacturer:
-                    continue
-
-                manufacturer = manufacturer.strip()
-
-                if not manufacturer:
-                    continue
-
-                all_manufacturers[manufacturer] = (
-                    all_manufacturers.get(manufacturer, 0) + 1
+            while start < MAX_RESULTS:
+                print(
+                    f"Запрашиваем объявления: "
+                    f"{start} - {start + PAGE_SIZE}"
                 )
 
-            print(
-                f"Получено: {len(cars)}, "
-                f"уникальных марок: {len(all_manufacturers)}"
-            )
+                query = (
+                    f"(And.Hidden.N._.CarType.{car_type}.)"
+                )
 
-            if len(cars) < PAGE_SIZE:
-                print("Получена последняя страница.")
-                break
+                cars = await client.search(
+                    query=query,
+                    start=start,
+                    count=PAGE_SIZE,
+                )
 
-            start += PAGE_SIZE
+                if not cars:
+                    print("Объявления закончились.")
+                    break
+
+                for car in cars:
+                    manufacturer = car.get("Manufacturer")
+
+                    if not manufacturer:
+                        continue
+
+                    manufacturer = str(
+                        manufacturer
+                    ).strip()
+
+                    if not manufacturer:
+                        continue
+
+                    all_manufacturers[manufacturer] = (
+                        all_manufacturers.get(
+                            manufacturer,
+                            0,
+                        )
+                        + 1
+                    )
+
+                print(
+                    f"Получено: {len(cars)}, "
+                    f"уникальных марок: "
+                    f"{len(all_manufacturers)}"
+                )
+
+                if len(cars) < PAGE_SIZE:
+                    print("Получена последняя страница.")
+                    break
+
+                start += PAGE_SIZE
 
         print()
         print("=" * 60)
-        print(f"Всего найдено уникальных марок: {len(all_manufacturers)}")
+        print(
+            "Всего найдено уникальных марок: "
+            f"{len(all_manufacturers)}"
+        )
         print("=" * 60)
 
         db = SessionLocal()
@@ -84,7 +104,9 @@ async def import_manufacturers() -> None:
             added = 0
             updated = 0
 
-            for name, count in sorted(all_manufacturers.items()):
+            for name, count in sorted(
+                all_manufacturers.items()
+            ):
                 manufacturer = existing.get(name)
 
                 if manufacturer:
