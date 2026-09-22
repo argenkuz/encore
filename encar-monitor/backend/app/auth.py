@@ -22,7 +22,9 @@ def _secret() -> bytes:
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
     derived = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
-    return f"scrypt$\{base64.urlsafe_b64encode(salt).decode()}$\{base64.urlsafe_b64encode(derived).decode()}"
+    salt_part = base64.urlsafe_b64encode(salt).decode()
+    hash_part = base64.urlsafe_b64encode(derived).decode()
+    return "scrypt$" + salt_part + "$" + hash_part
 
 
 def verify_password(password: str, stored: str) -> bool:
