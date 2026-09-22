@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager, suppress
 import asyncio
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +33,7 @@ bot: Bot | None = None
 monitor_scheduler: MonitorScheduler | None = None
 telegram_polling_task: asyncio.Task | None = None
 catalog_bootstrap_task: asyncio.Task | None = None
+keep_alive_task: asyncio.Task | None = None
 
 
 # =========================================================
@@ -44,6 +46,7 @@ async def lifespan(app: FastAPI):
     global monitor_scheduler
     global telegram_polling_task
     global catalog_bootstrap_task
+    global keep_alive_task
 
     print("Starting Encar Monitor...")
 
@@ -83,6 +86,35 @@ async def lifespan(app: FastAPI):
             print(f"Encar catalog import failed: {error}")
 
     catalog_bootstrap_task = asyncio.create_task(bootstrap_catalog())
+
+
+    # -----------------------------------------------------
+    # RENDER KEEP-ALIVE
+    # -----------------------------------------------------
+
+    async def keep_alive():
+        import httpx
+
+        render_url = os.getenv("RENDER_EXTERNAL_URL")
+
+        if not render_url:
+            print("RENDER_EXTERNAL_URL is not set. Keep-alive disabled.")
+            return
+
+        health_url = f"{render_url.rstrip('/')}/health"
+        print(f"Keep-alive started: {health_url}")
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            while True:
+                try:
+                    response = await client.get(health_url)
+                    print(f"Keep-alive ping: {response.status_code}")
+                except Exception as error:
+                    print(f"Keep-alive ping failed: {error}")
+
+                await asyncio.sleep(60)
+
+    keep_alive_task = asyncio.create_task(keep_alive())
 
 
     # -----------------------------------------------------
@@ -129,6 +161,15 @@ async def lifespan(app: FastAPI):
 
     finally:
         print("Stopping Encar Monitor...")
+
+        # -------------------------------------------------
+        # STOP KEEP-ALIVE
+        # -------------------------------------------------
+
+        if keep_alive_task is not None:
+            keep_alive_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await keep_alive_task
 
         # -------------------------------------------------
         # STOP CATALOG BOOTSTRAP
