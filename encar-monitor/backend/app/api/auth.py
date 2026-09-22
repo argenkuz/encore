@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, hash_password, verify_password
+from app.config import settings
 from app.database import get_db
 from app.models import User
 
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/api/auth", tags=["Auth"])
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=50)
     password: str = Field(min_length=8, max_length=128)
+    master_password: str = Field(min_length=1, max_length=128)
 
 
 class LoginRequest(BaseModel):
@@ -32,6 +34,12 @@ def validate_username(username: str) -> bool:
 
 @router.post("/register")
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
+    if not verify_master_registration_password(data.master_password):
+        raise HTTPException(
+            status_code=403,
+            detail="Неверный мастер-пароль",
+        )
+
     username = normalize_username(data.username)
 
     if not validate_username(username):
@@ -65,6 +73,13 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
             "is_active": user.is_active,
         },
     }
+
+
+def verify_master_registration_password(value: str) -> bool:
+    return __import__("hmac").compare_digest(
+        value,
+        settings.master_registration_password,
+    )
 
 
 @router.post("/login")
