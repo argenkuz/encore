@@ -9,6 +9,7 @@ from aiogram import Bot
 from app.config import settings
 from app.database import init_db
 
+from app.api.auth import router as auth_router
 from app.api.filters import router as filters_router
 from app.api.users import router as users_router
 from app.api.catalog import router as catalog_router
@@ -162,6 +163,10 @@ app.add_middleware(
 # =========================================================
 # ROUTERS
 # =========================================================
+
+app.include_router(
+    auth_router,
+)
 
 app.include_router(
     filters_router,
