@@ -158,10 +158,8 @@ function App() {
         <HomePage
           onCreateFilter={handleCreateFilter}
           onEditFilter={handleEditFilter}
+          onLogout={handleLogout}
         />
-        <button type="button" className="logout-button" onClick={handleLogout}>
-          Выйти
-        </button>
       </>
     );
   }
