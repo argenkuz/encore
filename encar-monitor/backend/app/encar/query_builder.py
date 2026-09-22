@@ -1,3 +1,4 @@
+from app.encar.car_type import get_car_type
 from app.models import Filter
 
 
@@ -5,7 +6,7 @@ class EncarQueryBuilder:
 
     @staticmethod
     def build(filter_: Filter) -> str:
-        """Build Encar's general Encar search query."""
+        """Build Encar's general search query for domestic/imported cars."""
 
         conditions: list[str] = []
 
@@ -65,8 +66,10 @@ class EncarQueryBuilder:
                 f"Mileage.{mileage_from}_{mileage_to}"
             )
 
+        car_type = get_car_type(filter_.manufacturer)
+
         if conditions:
             condition = "._.".join(conditions)
-            return f"(And.Hidden.N._.CarType.Y._.{condition}.)"
+            return f"(And.Hidden.N._.CarType.{car_type}._.{condition}.)"
 
-        return "(And.Hidden.N._.CarType.Y.)"
+        return f"(And.Hidden.N._.CarType.{car_type}.)"
