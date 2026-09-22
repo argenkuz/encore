@@ -27,6 +27,7 @@ import FilterCard from "../components/FilterCard";
 interface HomePageProps {
   onCreateFilter: () => void;
   onEditFilter: (filter: Filter) => void;
+  onLogout: () => void;
 }
 
 
@@ -61,6 +62,7 @@ function formatNextRun(value: string | null) {
 export default function HomePage({
   onCreateFilter,
   onEditFilter,
+  onLogout,
 }: HomePageProps) {
   const [filters, setFilters] = useState<Filter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -321,26 +323,36 @@ export default function HomePage({
           Encar <span>Монитор</span>
         </div>
 
-        <button
-          type="button"
-          className={
-            monitorEnabled
-              ? "power-button active"
-              : "power-button"
-          }
-          onClick={handleMonitorToggle}
-          disabled={
-            savingSettings ||
-            settingsLoading
-          }
-          aria-label={
-            monitorEnabled
-              ? "Выключить монитор"
-              : "Включить монитор"
-          }
-        >
-          ⏻
-        </button>
+        <div className="app-header-actions">
+          <button
+            type="button"
+            className="logout-button"
+            onClick={onLogout}
+          >
+            Выйти
+          </button>
+
+          <button
+            type="button"
+            className={
+              monitorEnabled
+                ? "power-button active"
+                : "power-button"
+            }
+            onClick={handleMonitorToggle}
+            disabled={
+              savingSettings ||
+              settingsLoading
+            }
+            aria-label={
+              monitorEnabled
+                ? "Выключить монитор"
+                : "Включить монитор"
+            }
+          >
+            ⏻
+          </button>
+        </div>
       </header>
 
       <main className="dashboard">
