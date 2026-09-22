@@ -13,6 +13,7 @@ function AuthPage({ onAuthorized }: { onAuthorized: () => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [masterPassword, setMasterPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -25,7 +26,7 @@ function AuthPage({ onAuthorized }: { onAuthorized: () => void }) {
       if (mode === "login") {
         await login(username, password);
       } else {
-        await register(username, password);
+        await register(username, password, masterPassword);
       }
       onAuthorized();
     } catch (error) {
@@ -61,6 +62,18 @@ function AuthPage({ onAuthorized }: { onAuthorized: () => void }) {
           maxLength={128}
           required
         />
+
+        {mode === "register" && (
+          <input
+            value={masterPassword}
+            onChange={(event) => setMasterPassword(event.target.value)}
+            placeholder="Мастер-пароль"
+            type="password"
+            autoComplete="off"
+            maxLength={128}
+            required
+          />
+        )}
 
         {error && <span className="auth-error">{error}</span>}
 
