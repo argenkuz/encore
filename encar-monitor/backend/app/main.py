@@ -142,6 +142,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://10.206.36.233:5173",
         *([settings.frontend_url] if settings.frontend_url else []),
     ],
 
