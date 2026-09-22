@@ -17,6 +17,47 @@ KOREA_TZ = ZoneInfo("Asia/Seoul")
 MAX_VIEWS = 50
 
 
+def matches_filter(car, filter_: Filter) -> bool:
+    """Strict local validation so Telegram only receives matching cars."""
+
+    if filter_.year_from is not None:
+        if car.year is None or car.year < filter_.year_from:
+            return False
+
+    if filter_.year_to is not None:
+        if car.year is None or car.year > filter_.year_to:
+            return False
+
+    if filter_.month_from is not None:
+        if car.year is None:
+            return False
+        month_raw = None
+        # Encar's raw Year is not retained by ParsedCar, so month filters
+        # are currently enforced by Encar's query only.
+        # Do not guess a month from the model year.
+        month_raw = None
+        if month_raw is None:
+            return True
+
+    if filter_.price_from is not None:
+        if car.price is None or car.price < filter_.price_from:
+            return False
+
+    if filter_.price_to is not None:
+        if car.price is None or car.price > filter_.price_to:
+            return False
+
+    if filter_.mileage_from is not None:
+        if car.mileage is None or car.mileage < filter_.mileage_from:
+            return False
+
+    if filter_.mileage_to is not None:
+        if car.mileage is None or car.mileage > filter_.mileage_to:
+            return False
+
+    return True
+
+
 class EncarMonitor:
 
     def __init__(self, notifier: TelegramNotifier):
@@ -25,6 +66,14 @@ class EncarMonitor:
 
     async def check_filter(self, filter_: Filter) -> list:
         query = EncarQueryBuilder.build(filter_)
+
+        print(
+            f"[Monitor] Filter #{filter_.id}: "
+            f"query={query}; "
+            f"year={filter_.year_from}-{filter_.year_to}; "
+            f"price={filter_.price_from}-{filter_.price_to}; "
+            f"mileage={filter_.mileage_from}-{filter_.mileage_to}"
+        )
 
         raw_cars = await self.encar_client.search(
             query=query,
@@ -50,6 +99,15 @@ class EncarMonitor:
                     print(
                         f"[Monitor] Failed to load Encar details "
                         f"for {raw_car.get('Id')}: {error}"
+                    )
+                    continue
+
+                if not matches_filter(car, filter_):
+                    print(
+                        f"[Monitor] Skip {car.encar_id}: "
+                        f"does not match filter "
+                        f"(year={car.year}, price={car.price}, "
+                        f"mileage={car.mileage})"
                     )
                     continue
 
