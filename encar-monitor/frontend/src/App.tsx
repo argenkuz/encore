@@ -91,16 +91,11 @@ function App() {
   const [page, setPage] = useState<Page>("home");
   const [editingFilter, setEditingFilter] = useState<Filter | null>(null);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
-  const [authError, setAuthError] = useState("");
 
   useEffect(() => {
     void getCurrentUser()
       .then(() => setAuthorized(true))
-      .catch((error) => {
-        console.error(error);
-        setAuthError(error instanceof Error ? error.message : "Не удалось войти");
-        setAuthorized(false);
-      });
+      .catch(() => setAuthorized(false));
   }, []);
 
   function handleCreateFilter() {
@@ -123,12 +118,18 @@ function App() {
     setPage("home");
   }
 
+  function handleLogout() {
+    logout();
+    setAuthorized(false);
+    setPage("home");
+  }
+
   if (authorized === null) {
     return (
       <div className="page auth-state">
         <div className="auth-card">
-          <strong>Проверяем Telegram...</strong>
-          <span>Подтверждаем доступ к Encar Монитору</span>
+          <strong>Проверяем авторизацию...</strong>
+          <span>Подготавливаем Encar Monitor</span>
         </div>
       </div>
     );
@@ -136,11 +137,6 @@ function App() {
 
   if (!authorized) {
     return <AuthPage onAuthorized={() => setAuthorized(true)} />;
-
-  function handleLogout() {
-    logout();
-    setAuthorized(false);
-    setPage("home");
   }
 
   if (page === "home") {
