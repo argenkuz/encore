@@ -17,6 +17,12 @@ declare global {
 }
 
 function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem("encar_access_token");
+
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+
   const initData = window.Telegram?.WebApp?.initData;
 
   if (initData) {
@@ -54,10 +60,59 @@ async function apiFetch(path: string, init: RequestInit = {}) {
 
 export interface CurrentUser {
   id: number;
-  telegram_id: number;
+  telegram_id: number | null;
   username: string | null;
   role: string;
   is_active: boolean;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: {
+    id: number;
+    username: string | null;
+    role: string;
+    is_active: boolean;
+  };
+}
+
+export async function login(username: string, password: string): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.detail || "Не удалось войти");
+  }
+
+  localStorage.setItem("encar_access_token", data.access_token);
+  return data;
+}
+
+export async function register(username: string, password: string): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.detail || "Не удалось зарегистрироваться");
+  }
+
+  localStorage.setItem("encar_access_token", data.access_token);
+  return data;
+}
+
+export function logout(): void {
+  localStorage.removeItem("encar_access_token");
 }
 
 export async function getCurrentUser(): Promise<CurrentUser> {
