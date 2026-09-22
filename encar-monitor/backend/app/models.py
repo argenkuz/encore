@@ -21,16 +21,23 @@ class User(Base):
         primary_key=True,
     )
 
-    telegram_id: Mapped[int] = mapped_column(
+    telegram_id: Mapped[int | None] = mapped_column(
         Integer,
+        unique=True,
+        nullable=True,
+        index=True,
+    )
+
+    username: Mapped[str] = mapped_column(
+        String(255),
         unique=True,
         nullable=False,
         index=True,
     )
 
-    username: Mapped[str | None] = mapped_column(
-        String(255),
-        nullable=True,
+    password_hash: Mapped[str] = mapped_column(
+        String(512),
+        nullable=False,
     )
 
     role: Mapped[str] = mapped_column(
