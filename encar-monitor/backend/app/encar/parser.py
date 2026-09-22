@@ -9,6 +9,7 @@ class ParsedCar:
     model: str | None
     badge: str | None
     year: int | None
+    month: int | None
     mileage: int | None
     price: int | None
     fuel_type: str | None
@@ -29,12 +30,17 @@ def parse_car(
     mileage_raw = data.get("Mileage")
     price_raw = data.get("Price")
 
-    # Encar's Year is commonly encoded as YYYYMM, e.g. 202010.
-    # Convert it to the actual calendar year used by our filter UI.
     year = None
+    month = None
+
+    # Encar's Year is commonly encoded as YYYYMM, e.g. 202010.
     if year_raw is not None:
         year_value = int(year_raw)
-        year = year_value // 100 if year_value >= 10000 else year_value
+        if year_value >= 10000:
+            year = year_value // 100
+            month = year_value % 100
+        else:
+            year = year_value
 
     manage = (details or {}).get("manage") or {}
 
@@ -64,6 +70,7 @@ def parse_car(
         model=data.get("Model"),
         badge=data.get("Badge"),
         year=year,
+        month=month,
         mileage=int(mileage_raw) if mileage_raw is not None else None,
         price=int(price_raw) if price_raw is not None else None,
         fuel_type=data.get("FuelType"),
