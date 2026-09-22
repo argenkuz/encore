@@ -7,7 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from aiogram import Bot
 
 from app.config import settings
-from app.database import init_db
+from sqlalchemy import func, select
+
+from app.database import SessionLocal, init_db
+from app.models import CatalogManufacturer
+from app.encar.import_catalog import import_catalog
 
 from app.api.auth import router as auth_router
 from app.api.filters import router as filters_router
@@ -27,6 +31,7 @@ from app.monitoring.scheduler import MonitorScheduler
 bot: Bot | None = None
 monitor_scheduler: MonitorScheduler | None = None
 telegram_polling_task: asyncio.Task | None = None
+catalog_bootstrap_task: asyncio.Task | None = None
 
 
 # =========================================================
@@ -38,6 +43,7 @@ async def lifespan(app: FastAPI):
     global bot
     global monitor_scheduler
     global telegram_polling_task
+    global catalog_bootstrap_task
 
     print("Starting Encar Monitor...")
 
@@ -48,6 +54,35 @@ async def lifespan(app: FastAPI):
     init_db()
 
     print("Database initialized.")
+
+    # -----------------------------------------------------
+    # CATALOG BOOTSTRAP
+    # -----------------------------------------------------
+
+    async def bootstrap_catalog():
+        db = SessionLocal()
+        try:
+            manufacturers_count = db.scalar(
+                select(func.count()).select_from(CatalogManufacturer)
+            )
+        finally:
+            db.close()
+
+        if manufacturers_count:
+            print(
+                f"Catalog already initialized ({manufacturers_count} manufacturers)."
+            )
+            return
+
+        print("Catalog is empty. Starting Encar catalog import...")
+
+        try:
+            await import_catalog()
+            print("Encar catalog import completed.")
+        except Exception as error:
+            print(f"Encar catalog import failed: {error}")
+
+    catalog_bootstrap_task = asyncio.create_task(bootstrap_catalog())
 
 
     # -----------------------------------------------------
@@ -94,6 +129,15 @@ async def lifespan(app: FastAPI):
 
     finally:
         print("Stopping Encar Monitor...")
+
+        # -------------------------------------------------
+        # STOP CATALOG BOOTSTRAP
+        # -------------------------------------------------
+
+        if catalog_bootstrap_task is not None:
+            catalog_bootstrap_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await catalog_bootstrap_task
 
         # -------------------------------------------------
         # STOP TELEGRAM POLLING
