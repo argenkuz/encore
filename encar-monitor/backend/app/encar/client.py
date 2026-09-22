@@ -3,15 +3,13 @@ from __future__ import annotations
 import httpx
 
 
-ENCAR_API_URL = (
-    "https://api.encar.com/search/car/list/general"
-)
+ENCAR_API_URL = "https://api.encar.com/search/car/list/general"
+ENCAR_VEHICLE_URL = "https://api.encar.com/v1/readside/vehicle"
 
 
 class EncarClient:
 
     def __init__(self):
-
         self.client = httpx.AsyncClient(
             timeout=20.0,
             headers={
@@ -26,43 +24,37 @@ class EncarClient:
             },
         )
 
-
     async def search(
         self,
         query: str,
         start: int = 0,
         count: int = 20,
     ) -> list[dict]:
-
         params = {
             "count": "true",
             "q": query,
-            "sr": (
-                f"|ModifiedDate|"
-                f"{start}|"
-                f"{count}"
-            ),
+            "sr": f"|ModifiedDate|{start}|{count}",
         }
-
 
         response = await self.client.get(
             ENCAR_API_URL,
             params=params,
         )
-
-
         response.raise_for_status()
-
 
         data = response.json()
 
+        return data.get("SearchResults", [])
 
-        return data.get(
-            "SearchResults",
-            [],
+    async def get_vehicle_details(self, encar_id: int) -> dict:
+        response = await self.client.get(
+            f"{ENCAR_VEHICLE_URL}/{encar_id}",
+            params={
+                "include": "MANAGE,SPEC,CONDITION,ADVERTISEMENT",
+            },
         )
-
+        response.raise_for_status()
+        return response.json()
 
     async def close(self):
-
         await self.client.aclose()
