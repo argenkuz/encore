@@ -9,6 +9,46 @@ const API_URL = (
   `http://${window.location.hostname}:8000`
 ).replace(/\/$/, "");
 
+const REQUEST_TIMEOUT_MS = 15000;
+
+function getApiUrl(path: string): string {
+  return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(
+    () => controller.abort(),
+    REQUEST_TIMEOUT_MS,
+  );
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: init.signal ?? controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(
+        `Сервер не ответил за ${REQUEST_TIMEOUT_MS / 1000} сек. Проверьте backend и VITE_API_URL.`,
+      );
+    }
+
+    if (error instanceof TypeError) {
+      throw new Error(
+        `Не удалось подключиться к API: ${getApiUrl("/")}. Проверьте ngrok/backend и CORS.`,
+      );
+    }
+
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 declare global {
   interface Window {
     Telegram?: {
@@ -52,14 +92,21 @@ async function apiFetch(path: string, init: RequestInit = {}) {
     headers.set(key, value);
   });
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetchWithTimeout(getApiUrl(path), {
     ...init,
     headers,
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
-    throw new Error(error?.detail || "Ошибка API");
+    if (response.status === 401) {
+      localStorage.removeItem("encar_access_token");
+    }
+
+    throw new Error(
+      error?.detail ||
+        `Ошибка API: ${response.status} ${response.statusText}`,
+    );
   }
 
   return response;
@@ -85,7 +132,7 @@ export interface AuthResponse {
 }
 
 export async function login(username: string, password: string): Promise<AuthResponse> {
-  const response = await fetch(`${API_URL}/api/auth/login`, {
+  const response = await fetchWithTimeout(getApiUrl("/api/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
@@ -102,7 +149,7 @@ export async function login(username: string, password: string): Promise<AuthRes
 }
 
 export async function register(username: string, password: string, masterPassword: string): Promise<AuthResponse> {
-  const response = await fetch(`${API_URL}/api/auth/register`, {
+  const response = await fetchWithTimeout(getApiUrl("/api/auth/register"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password, master_password: masterPassword }),
