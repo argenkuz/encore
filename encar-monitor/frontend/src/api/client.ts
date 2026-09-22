@@ -34,7 +34,11 @@ function getAuthHeaders(): Record<string, string> {
 
   const devTelegramId = import.meta.env.VITE_DEV_TELEGRAM_ID;
 
-  if (import.meta.env.DEV && devTelegramId) {
+  const isLocalhost =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+
+  if (import.meta.env.DEV && devTelegramId && isLocalhost) {
     return { "X-Dev-Telegram-Id": devTelegramId };
   }
 
