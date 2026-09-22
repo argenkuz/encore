@@ -28,16 +28,16 @@ class User(Base):
         index=True,
     )
 
-    username: Mapped[str] = mapped_column(
+    username: Mapped[str | None] = mapped_column(
         String(255),
         unique=True,
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
-    password_hash: Mapped[str] = mapped_column(
+    password_hash: Mapped[str | None] = mapped_column(
         String(512),
-        nullable=False,
+        nullable=True,
     )
 
     role: Mapped[str] = mapped_column(
