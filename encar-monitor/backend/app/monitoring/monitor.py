@@ -7,7 +7,7 @@ from app.database import SessionLocal
 from app.encar.client import EncarClient
 from app.encar.parser import parse_car
 from app.encar.query_builder import EncarQueryBuilder
-from app.models import Filter, MonitorSettings, SeenCar, User
+from app.models import Filter, MonitorSettings, SeenCar, User, TelegramRecipient
 from app.monitoring.deduplication import is_new_car
 from app.telegram.notifications import TelegramNotifier
 
@@ -49,17 +49,41 @@ class EncarMonitor:
         finally:
             db.close()
 
-        if filter_.user.telegram_id is not None:
-            for car in new_cars:
-                await self.notifier.send_car(
-                    telegram_id=filter_.user.telegram_id,
-                    car=car,
+        if new_cars:
+            recipient_db = SessionLocal()
+
+            try:
+                recipient_ids = recipient_db.scalars(
+                    select(TelegramRecipient.telegram_id)
+                    .order_by(TelegramRecipient.telegram_id)
+                ).all()
+            finally:
+                recipient_db.close()
+
+            if recipient_ids:
+                for telegram_id in recipient_ids:
+                    for car in new_cars:
+                        try:
+                            await self.notifier.send_car(
+                                telegram_id=telegram_id,
+                                car=car,
+                            )
+                        except Exception as error:
+                            print(
+                                f"[Monitor] Telegram notification failed "
+                                f"for {telegram_id}: {error}"
+                            )
+
+                print(
+                    f"[Monitor] Filter #{filter_.id}: "
+                    f"sent {len(new_cars)} new cars to "
+                    f"{len(recipient_ids)} Telegram recipient(s)"
                 )
-        elif new_cars:
-            print(
-                f"[Monitor] Filter #{filter_.id}: "
-                f"{len(new_cars)} new cars, but Telegram is not linked."
-            )
+            else:
+                print(
+                    f"[Monitor] Filter #{filter_.id}: "
+                    f"{len(new_cars)} new cars, but no Telegram recipients configured."
+                )
 
         return new_cars
 
