@@ -7,3 +7,4 @@ httpx
 aiogram
 apscheduler
 python-dotenv
+psycopg2-binary
