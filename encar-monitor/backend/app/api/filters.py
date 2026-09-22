@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import authenticated_user
 from app.database import get_db
-from app.models import Filter, User
+from app.models import Filter, SeenCar, User
 
 
 router = APIRouter(
@@ -260,6 +260,12 @@ def delete_filter(
             status_code=404,
             detail="Filter not found",
         )
+
+    # Remove historical seen-car records first because PostgreSQL
+    # protects the filter row with a foreign-key constraint.
+    db.query(SeenCar).filter(
+        SeenCar.filter_id == filter_.id,
+    ).delete(synchronize_session=False)
 
     db.delete(filter_)
     db.commit()
