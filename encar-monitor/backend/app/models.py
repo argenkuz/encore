@@ -5,6 +5,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    BigInteger,
     String,
     UniqueConstraint,
 )
@@ -22,7 +23,7 @@ class User(Base):
     )
 
     telegram_id: Mapped[int | None] = mapped_column(
-        Integer,
+        BigInteger,
         unique=True,
         nullable=True,
         index=True,
@@ -475,7 +476,7 @@ class TelegramRecipient(Base):
     )
 
     telegram_id: Mapped[int] = mapped_column(
-        Integer,
+        BigInteger,
         unique=True,
         nullable=False,
         index=True,
