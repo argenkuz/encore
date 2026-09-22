@@ -20,20 +20,48 @@ MAX_VIEWS = 50
 def matches_filter(car, filter_: Filter) -> bool:
     """Strict local validation before a car can be sent to Telegram."""
 
-    if filter_.year_from is not None:
-        if car.year is None or car.year < filter_.year_from:
+    # Treat year/month as one calendar range.
+    #
+    # Examples:
+    #   11.2019 -> 2023       = 2019-11 through 2023-12
+    #   2020    -> 2023       = 2020-01 through 2023-12
+    #   2020-03 -> 2022-08    = 2020-03 through 2022-08
+    if (
+        filter_.year_from is not None
+        or filter_.month_from is not None
+        or filter_.year_to is not None
+        or filter_.month_to is not None
+    ):
+        if car.year is None:
             return False
 
-    if filter_.year_to is not None:
-        if car.year is None or car.year > filter_.year_to:
+        if car.month is None:
             return False
 
-    if filter_.month_from is not None:
-        if car.month is None or car.month < filter_.month_from:
+        car_yyyymm = car.year * 100 + car.month
+
+        start_yyyymm = None
+        if filter_.year_from is not None:
+            start_month = (
+                filter_.month_from
+                if filter_.month_from is not None
+                else 1
+            )
+            start_yyyymm = filter_.year_from * 100 + start_month
+
+        end_yyyymm = None
+        if filter_.year_to is not None:
+            end_month = (
+                filter_.month_to
+                if filter_.month_to is not None
+                else 12
+            )
+            end_yyyymm = filter_.year_to * 100 + end_month
+
+        if start_yyyymm is not None and car_yyyymm < start_yyyymm:
             return False
 
-    if filter_.month_to is not None:
-        if car.month is None or car.month > filter_.month_to:
+        if end_yyyymm is not None and car_yyyymm > end_yyyymm:
             return False
 
     if filter_.price_from is not None:
