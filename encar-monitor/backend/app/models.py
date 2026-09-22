@@ -464,3 +464,25 @@ class MonitorSettings(Base):
     user: Mapped["User"] = relationship(
         "User",
     )
+
+
+class TelegramRecipient(Base):
+    __tablename__ = "telegram_recipients"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    telegram_id: Mapped[int] = mapped_column(
+        Integer,
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
