@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     frontend_url: str | None = None
     environment: str = "production"
     telegram_auth_max_age_seconds: int = 86400
+    auth_secret: str | None = None
+    admin_username: str | None = None
+    admin_password: str | None = None
+    master_registration_password: str
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
