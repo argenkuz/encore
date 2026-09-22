@@ -94,6 +94,19 @@ def init_db():
                 connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username ON users (username)"))
                 connection.execute(text("PRAGMA foreign_keys=ON"))
 
+    # PostgreSQL stores SQLAlchemy Integer as INT4. Telegram IDs can exceed
+    # the INT4 limit, so widen Telegram ID columns to BIGINT on existing DBs.
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as connection:
+            connection.execute(text("""
+                ALTER TABLE users
+                ALTER COLUMN telegram_id TYPE BIGINT
+            """))
+            connection.execute(text("""
+                ALTER TABLE telegram_recipients
+                ALTER COLUMN telegram_id TYPE BIGINT
+            """))
+
     # Optional production bootstrap for the first administrator.
     if settings.admin_username and settings.admin_password:
         from app.auth import hash_password
