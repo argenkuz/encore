@@ -39,7 +39,7 @@ async function fetchWithTimeout(
 
     if (error instanceof TypeError) {
       throw new Error(
-        `Не удалось подключиться к API: ${getApiUrl("/")}. Проверьте ngrok/backend и CORS.`,
+        `Не удалось подключиться к API: ${getApiUrl(path)}. Проверьте backend/CORS.`,
       );
     }
 
