@@ -29,6 +29,13 @@ def parse_car(
     mileage_raw = data.get("Mileage")
     price_raw = data.get("Price")
 
+    # Encar's Year is commonly encoded as YYYYMM, e.g. 202010.
+    # Convert it to the actual calendar year used by our filter UI.
+    year = None
+    if year_raw is not None:
+        year_value = int(year_raw)
+        year = year_value // 100 if year_value >= 10000 else year_value
+
     manage = (details or {}).get("manage") or {}
 
     first_advertised_raw = manage.get(
@@ -56,7 +63,7 @@ def parse_car(
         manufacturer=data.get("Manufacturer"),
         model=data.get("Model"),
         badge=data.get("Badge"),
-        year=int(year_raw) if year_raw is not None else None,
+        year=year,
         mileage=int(mileage_raw) if mileage_raw is not None else None,
         price=int(price_raw) if price_raw is not None else None,
         fuel_type=data.get("FuelType"),
