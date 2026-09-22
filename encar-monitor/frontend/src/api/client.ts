@@ -184,6 +184,52 @@ export async function getBadges(
   return response.json();
 }
 
+
+export interface TelegramRecipient {
+  telegram_id: number;
+  created_at: string;
+}
+
+export async function getTelegramRecipients(
+  masterPassword: string,
+): Promise<TelegramRecipient[]> {
+  const response = await apiFetch("/api/telegram/recipients", {
+    headers: {
+      "X-Master-Password": masterPassword,
+    },
+  });
+  return response.json();
+}
+
+export async function addTelegramRecipient(
+  telegramId: number,
+  masterPassword: string,
+): Promise<TelegramRecipient> {
+  const response = await apiFetch("/api/telegram/recipients", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Master-Password": masterPassword,
+    },
+    body: JSON.stringify({
+      telegram_id: telegramId,
+    }),
+  });
+  return response.json();
+}
+
+export async function deleteTelegramRecipient(
+  telegramId: number,
+  masterPassword: string,
+): Promise<void> {
+  await apiFetch("/api/telegram/recipients/" + telegramId, {
+    method: "DELETE",
+    headers: {
+      "X-Master-Password": masterPassword,
+    },
+  });
+}
+
 export interface MonitorSettings {
   enabled: boolean;
   interval_minutes: number;
