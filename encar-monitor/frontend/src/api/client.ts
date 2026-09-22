@@ -94,11 +94,11 @@ export async function login(username: string, password: string): Promise<AuthRes
   return data;
 }
 
-export async function register(username: string, password: string): Promise<AuthResponse> {
+export async function register(username: string, password: string, masterPassword: string): Promise<AuthResponse> {
   const response = await fetch(`${API_URL}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, master_password: masterPassword }),
   });
 
   const data = await response.json().catch(() => null);
