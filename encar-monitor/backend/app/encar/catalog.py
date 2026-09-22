@@ -10,6 +10,7 @@ from app.models import (
 )
 
 from app.encar.client import EncarClient
+from app.encar.car_type import get_car_type
 
 
 PAGE_SIZE = 500
@@ -51,7 +52,6 @@ class CatalogService:
         if self._manufacturers_cache is not None:
             return self._manufacturers_cache
 
-
         # 2. SQLite
         manufacturers = db.scalars(
             select(CatalogManufacturer)
@@ -59,7 +59,6 @@ class CatalogService:
                 CatalogManufacturer.name
             )
         ).all()
-
 
         self._manufacturers_cache = [
             {
@@ -70,7 +69,6 @@ class CatalogService:
             }
             for manufacturer in manufacturers
         ]
-
 
         return self._manufacturers_cache
 
@@ -87,21 +85,15 @@ class CatalogService:
 
         manufacturer = manufacturer.strip()
 
-
         if not manufacturer:
             return []
-
 
         # -------------------------------------------------
         # 1. RAM CACHE
         # -------------------------------------------------
 
         if manufacturer in self._models_cache:
-
-            return self._models_cache[
-                manufacturer
-            ]
-
+            return self._models_cache[manufacturer]
 
         # -------------------------------------------------
         # 2. FIND MANUFACTURER
@@ -115,10 +107,8 @@ class CatalogService:
             )
         )
 
-
         if not manufacturer_row:
             return []
-
 
         # -------------------------------------------------
         # 3. SQLITE
@@ -135,9 +125,7 @@ class CatalogService:
             )
         ).all()
 
-
         if models:
-
             result = [
                 {
                     "id": model.id,
@@ -147,24 +135,19 @@ class CatalogService:
                 for model in models
             ]
 
-
-            self._models_cache[
-                manufacturer
-            ] = result
-
-
+            self._models_cache[manufacturer] = result
             return result
-
 
         # -------------------------------------------------
         # 4. ENCAR
         # -------------------------------------------------
 
+        car_type = get_car_type(manufacturer)
+
         query = (
-            f"(And.Hidden.N._.(C.CarType.N._."
+            f"(And.Hidden.N._.(C.CarType.{car_type}._."
             f"Manufacturer.{manufacturer}.))"
         )
-
 
         print(
             f"Loading models from Encar: "
@@ -175,33 +158,26 @@ class CatalogService:
             f"Encar query: {query}"
         )
 
-
         raw_results: list[dict] = []
-
 
         for start in range(
             0,
             MAX_RESULTS,
             PAGE_SIZE,
         ):
-
             batch = await self.client.search(
                 query=query,
                 start=start,
                 count=PAGE_SIZE,
             )
 
-
             if not batch:
                 break
 
-
             raw_results.extend(batch)
-
 
             if len(batch) < PAGE_SIZE:
                 break
-
 
         # -------------------------------------------------
         # 5. BUILD MODEL COUNTS
@@ -212,37 +188,20 @@ class CatalogService:
             int,
         ] = {}
 
-
         for car in raw_results:
-
-            model_name = car.get(
-                "Model"
-            )
-
+            model_name = car.get("Model")
 
             if not model_name:
                 continue
 
-
-            model_name = str(
-                model_name
-            ).strip()
-
+            model_name = str(model_name).strip()
 
             if not model_name:
                 continue
 
-
-            model_counts[
-                model_name
-            ] = (
-                model_counts.get(
-                    model_name,
-                    0,
-                )
-                + 1
+            model_counts[model_name] = (
+                model_counts.get(model_name, 0) + 1
             )
-
 
         # -------------------------------------------------
         # 6. SAVE TO SQLITE
@@ -250,25 +209,18 @@ class CatalogService:
 
         result: list[dict] = []
 
-
         for name, count in sorted(
             model_counts.items(),
             key=lambda item: item[0],
         ):
-
             model = CatalogModel(
-                manufacturer_id=(
-                    manufacturer_row.id
-                ),
+                manufacturer_id=manufacturer_row.id,
                 name=name,
                 count=count,
             )
 
-
             db.add(model)
-
             db.flush()
-
 
             result.append(
                 {
@@ -278,18 +230,13 @@ class CatalogService:
                 }
             )
 
-
         db.commit()
-
 
         # -------------------------------------------------
         # 7. RAM CACHE
         # -------------------------------------------------
 
-        self._models_cache[
-            manufacturer
-        ] = result
-
+        self._models_cache[manufacturer] = result
 
         return result
 
@@ -316,12 +263,14 @@ class CatalogService:
         # -------------------------------------------------
         # 1. RAM CACHE
         # -------------------------------------------------
+
         if cache_key in self._badges_cache:
             return self._badges_cache[cache_key]
 
         # -------------------------------------------------
         # 2. FIND MANUFACTURER
         # -------------------------------------------------
+
         manufacturer_row = db.scalar(
             select(CatalogManufacturer).where(
                 CatalogManufacturer.name == manufacturer
@@ -334,6 +283,7 @@ class CatalogService:
         # -------------------------------------------------
         # 3. FIND MODEL
         # -------------------------------------------------
+
         model_row = db.scalar(
             select(CatalogModel).where(
                 CatalogModel.manufacturer_id == manufacturer_row.id,
@@ -347,6 +297,7 @@ class CatalogService:
         # -------------------------------------------------
         # 4. SQLITE
         # -------------------------------------------------
+
         badges = db.scalars(
             select(CatalogBadge)
             .where(CatalogBadge.model_id == model_row.id)
@@ -362,6 +313,7 @@ class CatalogService:
                 }
                 for badge in badges
             ]
+
             self._badges_cache[cache_key] = result
             return result
 
@@ -370,11 +322,13 @@ class CatalogService:
         # -------------------------------------------------
         # Do not put Model into q. Model names containing
         # parentheses can break Encar's query parser.
-        # Search the manufacturer and filter the selected model
-        # locally using the Model field returned by Encar.
+        # Search the selected manufacturer and filter the
+        # requested model locally.
+        car_type = get_car_type(manufacturer)
+
         query = (
             f"(And.Hidden.N._."
-            f"(C.CarType.N._."
+            f"(C.CarType.{car_type}._."
             f"Manufacturer.{manufacturer}.))"
         )
 
@@ -387,25 +341,33 @@ class CatalogService:
         def normalize_model(value: object) -> str:
             if value is None:
                 return ""
-            return " ".join(str(value).strip().split()).casefold()
+            return " ".join(
+                str(value).strip().split()
+            ).casefold()
 
         normalized_requested_model = normalize_model(model)
         raw_results: list[dict] = []
 
-        for start in range(0, MAX_RESULTS, BADGE_PAGE_SIZE):
+        for start in range(
+            0,
+            MAX_RESULTS,
+            BADGE_PAGE_SIZE,
+        ):
             batch = None
-            page_size = BADGE_PAGE_SIZE
 
             # Encar can reject large pages for this catalog query.
             # Retry the same page with smaller sizes before giving up.
-            for candidate_size in (BADGE_PAGE_SIZE, 50, 20):
+            for candidate_size in (
+                BADGE_PAGE_SIZE,
+                50,
+                20,
+            ):
                 try:
                     batch = await self.client.search(
                         query=query,
                         start=start,
                         count=candidate_size,
                     )
-                    page_size = candidate_size
                     break
                 except Exception as exc:
                     print(
@@ -414,8 +376,6 @@ class CatalogService:
                     )
 
             if batch is None:
-                # Catalog endpoints should not become a 500 just because
-                # Encar rejected a page request.
                 break
 
             if not batch:
@@ -428,20 +388,19 @@ class CatalogService:
                 ):
                     raw_results.append(car)
 
-            if len(batch) < PAGE_SIZE:
+            if len(batch) < BADGE_PAGE_SIZE:
                 break
 
         # -------------------------------------------------
         # 6. BUILD BADGE COUNTS
         # -------------------------------------------------
+
         badge_counts: dict[str, int] = {}
 
         for car in raw_results:
             badge_name = car.get("Badge")
 
             if not badge_name:
-                # Some Encar responses may expose the badge under
-                # another descriptive field. Keep this defensive.
                 badge_name = car.get("BadgeName")
 
             if not badge_name:
@@ -459,6 +418,7 @@ class CatalogService:
         # -------------------------------------------------
         # 7. SAVE TO SQLITE
         # -------------------------------------------------
+
         result: list[dict] = []
 
         for name, count in sorted(
@@ -487,6 +447,7 @@ class CatalogService:
         # -------------------------------------------------
         # 8. RAM CACHE
         # -------------------------------------------------
+
         self._badges_cache[cache_key] = result
 
         return result
@@ -497,7 +458,9 @@ class CatalogService:
         """Normalize Encar model labels before local catalog matching."""
         if value is None:
             return ""
-        return " ".join(str(value).strip().split()).casefold()
+        return " ".join(
+            str(value).strip().split()
+        ).casefold()
 
 
     # =====================================================
@@ -507,42 +470,31 @@ class CatalogService:
     def invalidate_manufacturers_cache(
         self,
     ):
-
         self._manufacturers_cache = None
-
 
     def invalidate_models_cache(
         self,
         manufacturer: str | None = None,
     ):
-
         if manufacturer is None:
-
             self._models_cache.clear()
-
         else:
-
             self._models_cache.pop(
                 manufacturer,
                 None,
             )
-
 
     def invalidate_badges_cache(
         self,
         manufacturer: str | None = None,
         model: str | None = None,
     ):
-
         if (
             manufacturer is None
             or model is None
         ):
-
             self._badges_cache.clear()
-
             return
-
 
         self._badges_cache.pop(
             (
@@ -561,13 +513,11 @@ class CatalogService:
         self,
         db: Session,
     ) -> bool:
-
         manufacturer = db.scalar(
             select(
                 CatalogManufacturer.id
             ).limit(1)
         )
-
 
         return manufacturer is not None
 
@@ -577,5 +527,4 @@ class CatalogService:
     # =====================================================
 
     async def close(self):
-
         await self.client.close()
