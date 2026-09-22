@@ -18,7 +18,7 @@ MAX_VIEWS = 50
 
 
 def matches_filter(car, filter_: Filter) -> bool:
-    """Strict local validation so Telegram only receives matching cars."""
+    """Strict local validation before a car can be sent to Telegram."""
 
     if filter_.year_from is not None:
         if car.year is None or car.year < filter_.year_from:
@@ -29,15 +29,12 @@ def matches_filter(car, filter_: Filter) -> bool:
             return False
 
     if filter_.month_from is not None:
-        if car.year is None:
+        if car.month is None or car.month < filter_.month_from:
             return False
-        month_raw = None
-        # Encar's raw Year is not retained by ParsedCar, so month filters
-        # are currently enforced by Encar's query only.
-        # Do not guess a month from the model year.
-        month_raw = None
-        if month_raw is None:
-            return True
+
+    if filter_.month_to is not None:
+        if car.month is None or car.month > filter_.month_to:
+            return False
 
     if filter_.price_from is not None:
         if car.price is None or car.price < filter_.price_from:
@@ -71,6 +68,7 @@ class EncarMonitor:
             f"[Monitor] Filter #{filter_.id}: "
             f"query={query}; "
             f"year={filter_.year_from}-{filter_.year_to}; "
+            f"month={filter_.month_from}-{filter_.month_to}; "
             f"price={filter_.price_from}-{filter_.price_to}; "
             f"mileage={filter_.mileage_from}-{filter_.mileage_to}"
         )
@@ -106,8 +104,8 @@ class EncarMonitor:
                     print(
                         f"[Monitor] Skip {car.encar_id}: "
                         f"does not match filter "
-                        f"(year={car.year}, price={car.price}, "
-                        f"mileage={car.mileage})"
+                        f"(year={car.year}, month={car.month}, "
+                        f"price={car.price}, mileage={car.mileage})"
                     )
                     continue
 
