@@ -15,6 +15,10 @@ import {
   updateFilter,
   getMonitorSettings,
   updateMonitorSettings,
+  getTelegramRecipients,
+  addTelegramRecipient,
+  deleteTelegramRecipient,
+  type TelegramRecipient,
 } from "../api/client";
 
 import FilterCard from "../components/FilterCard";
@@ -66,6 +70,13 @@ export default function HomePage({
   const [interval, setIntervalValue] = useState(5);
   const [monitorEnabled, setMonitorEnabled] = useState(true);
   const [nextRunAt, setNextRunAt] = useState<string | null>(null);
+
+  const [telegramRecipients, setTelegramRecipients] = useState<TelegramRecipient[]>([]);
+  const [telegramUnlocked, setTelegramUnlocked] = useState(false);
+  const [telegramMasterPassword, setTelegramMasterPassword] = useState("");
+  const [telegramIdInput, setTelegramIdInput] = useState("");
+  const [telegramLoading, setTelegramLoading] = useState(false);
+  const [telegramError, setTelegramError] = useState("");
 
   async function loadFilters() {
     try {
@@ -468,15 +479,219 @@ export default function HomePage({
             TELEGRAM УВЕДОМЛЕНИЯ
           </div>
 
-          <div className="telegram-status-row">
-            <span className="telegram-status-dot" />
-            <div>
-              <strong>Уведомления подключены</strong>
-              <span>
-                Новые автомобили отправляются в Telegram
-              </span>
+          {!telegramUnlocked ? (
+            <div className="telegram-management">
+              <div className="telegram-status-row">
+                <span className="telegram-status-dot" />
+                <div>
+                  <strong>Получатели уведомлений</strong>
+                  <span>
+                    Управление доступно по мастер-паролю
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="outline-button telegram-manage-button"
+                onClick={async () => {
+                  const password = window.prompt(
+                    "Введите мастер-пароль:",
+                  );
+
+                  if (!password) return;
+
+                  try {
+                    setTelegramLoading(true);
+                    setTelegramError("");
+
+                    const recipients =
+                      await getTelegramRecipients(password);
+
+                    setTelegramMasterPassword(password);
+                    setTelegramRecipients(recipients);
+                    setTelegramUnlocked(true);
+                  } catch (err) {
+                    console.error(err);
+                    setTelegramError(
+                      err instanceof Error
+                        ? err.message
+                        : "Не удалось открыть управление Telegram",
+                    );
+                  } finally {
+                    setTelegramLoading(false);
+                  }
+                }}
+                disabled={telegramLoading}
+              >
+                {telegramLoading
+                  ? "Проверка..."
+                  : "Управление получателями"}
+              </button>
+
+              {telegramError && (
+                <div className="telegram-management-error">
+                  {telegramError}
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            <div className="telegram-management">
+              <div className="telegram-recipient-header">
+                <div>
+                  <strong>Получатели уведомлений</strong>
+                  <span>
+                    Новые автомобили отправляются всем ID из списка
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  className="outline-button telegram-lock-button"
+                  onClick={() => {
+                    setTelegramUnlocked(false);
+                    setTelegramMasterPassword("");
+                    setTelegramIdInput("");
+                    setTelegramError("");
+                    setTelegramRecipients([]);
+                  }}
+                >
+                  Заблокировать
+                </button>
+              </div>
+
+              {telegramError && (
+                <div className="telegram-management-error">
+                  {telegramError}
+                </div>
+              )}
+
+              <div className="telegram-recipient-list">
+                {telegramRecipients.length === 0 ? (
+                  <div className="telegram-empty">
+                    Получатели ещё не добавлены
+                  </div>
+                ) : (
+                  telegramRecipients.map((recipient) => (
+                    <div
+                      className="telegram-recipient"
+                      key={recipient.telegram_id}
+                    >
+                      <span>{recipient.telegram_id}</span>
+
+                      <button
+                        type="button"
+                        className="telegram-delete-button"
+                        onClick={async () => {
+                          const confirmed = window.confirm(
+                            "Удалить Telegram ID " +
+                              recipient.telegram_id +
+                              "?",
+                          );
+
+                          if (!confirmed) return;
+
+                          try {
+                            setTelegramLoading(true);
+                            setTelegramError("");
+
+                            await deleteTelegramRecipient(
+                              recipient.telegram_id,
+                              telegramMasterPassword,
+                            );
+
+                            setTelegramRecipients((current) =>
+                              current.filter(
+                                (item) =>
+                                  item.telegram_id !==
+                                  recipient.telegram_id,
+                              ),
+                            );
+                          } catch (err) {
+                            console.error(err);
+                            setTelegramError(
+                              err instanceof Error
+                                ? err.message
+                                : "Не удалось удалить Telegram ID",
+                            );
+                          } finally {
+                            setTelegramLoading(false);
+                          }
+                        }}
+                        disabled={telegramLoading}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="telegram-add-row">
+                <input
+                  type="number"
+                  min="1"
+                  value={telegramIdInput}
+                  onChange={(event) =>
+                    setTelegramIdInput(event.target.value)
+                  }
+                  placeholder="Telegram ID"
+                  disabled={telegramLoading}
+                />
+
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={async () => {
+                    const telegramId =
+                      Number(telegramIdInput);
+
+                    if (
+                      !Number.isSafeInteger(telegramId) ||
+                      telegramId <= 0
+                    ) {
+                      setTelegramError(
+                        "Введите корректный Telegram ID",
+                      );
+                      return;
+                    }
+
+                    try {
+                      setTelegramLoading(true);
+                      setTelegramError("");
+
+                      const recipient =
+                        await addTelegramRecipient(
+                          telegramId,
+                          telegramMasterPassword,
+                        );
+
+                      setTelegramRecipients((current) => [
+                        ...current,
+                        recipient,
+                      ]);
+                      setTelegramIdInput("");
+                    } catch (err) {
+                      console.error(err);
+                      setTelegramError(
+                        err instanceof Error
+                          ? err.message
+                          : "Не удалось добавить Telegram ID",
+                      );
+                    } finally {
+                      setTelegramLoading(false);
+                    }
+                  }}
+                  disabled={
+                    telegramLoading ||
+                    !telegramIdInput.trim()
+                  }
+                >
+                  Добавить
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="dashboard-card journal-card">
