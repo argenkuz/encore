@@ -1,12 +1,91 @@
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 
 import HomePage from "./pages/HomePage";
 import FilterForm from "./components/FilterForm";
-import { getCurrentUser } from "./api/client";
+import { getCurrentUser, login, logout, register } from "./api/client";
 
 import type { Filter } from "./types/filter";
 
 type Page = "home" | "create" | "edit";
+
+function AuthPage({ onAuthorized }: { onAuthorized: () => void }) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setBusy(true);
+
+    try {
+      if (mode === "login") {
+        await login(username, password);
+      } else {
+        await register(username, password);
+      }
+      onAuthorized();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Ошибка авторизации");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="page auth-state">
+      <form className="auth-card auth-form" onSubmit={submit}>
+        <h1>Encar Monitor</h1>
+        <p>{mode === "login" ? "Войдите в аккаунт" : "Создайте аккаунт"}</p>
+
+        <input
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
+          placeholder="Логин"
+          autoComplete="username"
+          minLength={3}
+          maxLength={50}
+          required
+        />
+
+        <input
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Пароль (минимум 8 символов)"
+          type="password"
+          autoComplete={mode === "login" ? "current-password" : "new-password"}
+          minLength={8}
+          maxLength={128}
+          required
+        />
+
+        {error && <span className="auth-error">{error}</span>}
+
+        <button type="submit" disabled={busy}>
+          {busy
+            ? "Подождите..."
+            : mode === "login"
+              ? "Войти"
+              : "Зарегистрироваться"}
+        </button>
+
+        <button
+          type="button"
+          className="auth-switch"
+          onClick={() => {
+            setMode(mode === "login" ? "register" : "login");
+            setError("");
+          }}
+        >
+          {mode === "login" ? "Создать аккаунт" : "У меня уже есть аккаунт"}
+        </button>
+      </form>
+    </div>
+  );
+}
 
 function App() {
   const [page, setPage] = useState<Page>("home");
@@ -19,11 +98,7 @@ function App() {
       .then(() => setAuthorized(true))
       .catch((error) => {
         console.error(error);
-        setAuthError(
-          error instanceof Error
-            ? error.message
-            : "Не удалось подтвердить Telegram",
-        );
+        setAuthError(error instanceof Error ? error.message : "Не удалось войти");
         setAuthorized(false);
       });
   }, []);
@@ -60,25 +135,25 @@ function App() {
   }
 
   if (!authorized) {
-    return (
-      <div className="page auth-state">
-        <div className="auth-card">
-          <strong>⛔ Доступ не подтверждён</strong>
-          <span>{authError}</span>
-          <small>
-            Откройте приложение из Telegram или проверьте настройки Mini App.
-          </small>
-        </div>
-      </div>
-    );
+    return <AuthPage onAuthorized={() => setAuthorized(true)} />;
+
+  function handleLogout() {
+    logout();
+    setAuthorized(false);
+    setPage("home");
   }
 
   if (page === "home") {
     return (
-      <HomePage
-        onCreateFilter={handleCreateFilter}
-        onEditFilter={handleEditFilter}
-      />
+      <>
+        <HomePage
+          onCreateFilter={handleCreateFilter}
+          onEditFilter={handleEditFilter}
+        />
+        <button type="button" className="logout-button" onClick={handleLogout}>
+          Выйти
+        </button>
+      </>
     );
   }
 
