@@ -58,3 +58,32 @@ def init_db():
                 connection.execute(
                     text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(512)")
                 )
+
+    # Optional production bootstrap for the first administrator.
+    if settings.admin_username and settings.admin_password:
+        from app.auth import hash_password
+
+        db = SessionLocal()
+        try:
+            admin = db.query(models.User).filter(
+                models.User.telegram_id == settings.admin_telegram_id
+            ).first()
+
+            if admin is None:
+                admin = models.User(
+                    telegram_id=settings.admin_telegram_id,
+                    username=settings.admin_username.strip().lower(),
+                    password_hash=hash_password(settings.admin_password),
+                    role="admin",
+                    is_active=True,
+                )
+                db.add(admin)
+            else:
+                admin.username = settings.admin_username.strip().lower()
+                admin.password_hash = hash_password(settings.admin_password)
+                admin.role = "admin"
+                admin.is_active = True
+
+            db.commit()
+        finally:
+            db.close()
