@@ -49,10 +49,16 @@ class EncarMonitor:
         finally:
             db.close()
 
-        for car in new_cars:
-            await self.notifier.send_car(
-                telegram_id=filter_.user.telegram_id,
-                car=car,
+        if filter_.user.telegram_id is not None:
+            for car in new_cars:
+                await self.notifier.send_car(
+                    telegram_id=filter_.user.telegram_id,
+                    car=car,
+                )
+        elif new_cars:
+            print(
+                f"[Monitor] Filter #{filter_.id}: "
+                f"{len(new_cars)} new cars, but Telegram is not linked."
             )
 
         return new_cars
