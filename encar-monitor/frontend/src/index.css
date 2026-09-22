@@ -1157,3 +1157,76 @@ button:disabled {
 .auth-card small {
   color: #7f8da5;
 }
+
+
+.auth-form {
+  width: min(100%, 390px);
+  border: 1px solid #292e3a;
+  background: #12151d;
+}
+
+.auth-form h1 {
+  margin: 0;
+  color: #edf1f8;
+}
+
+.auth-form p {
+  margin: 0 0 12px;
+  color: #7f8da5;
+}
+
+.auth-form input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 13px;
+  border: 1px solid #292e3a;
+  border-radius: 9px;
+  background: #181c25;
+  color: #edf1f8;
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: #3f6ea8;
+}
+
+.auth-form > button[type="submit"] {
+  height: 44px;
+  border: 0;
+  border-radius: 9px;
+  background: #176f47;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-form > button[type="submit"]:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.auth-switch {
+  border: 0;
+  background: transparent;
+  color: #5798f7;
+  cursor: pointer;
+}
+
+.auth-error {
+  color: #e8656d !important;
+  font-size: 12px;
+}
+
+.logout-button {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 20;
+  padding: 8px 12px;
+  border: 1px solid #343b4c;
+  border-radius: 8px;
+  background: #12151d;
+  color: #9aa7bb;
+  cursor: pointer;
+}
