@@ -11,7 +11,8 @@ class EncarClient:
 
     def __init__(self):
         self.client = httpx.AsyncClient(
-            timeout=20.0,
+            timeout=httpx.Timeout(20.0, connect=10.0),
+            trust_env=False,
             headers={
                 "User-Agent": (
                     "Mozilla/5.0 "
