@@ -32,12 +32,7 @@ class EncarClient:
         start: int = 0,
         count: int = 20,
     ) -> list[dict]:
-        """Backward-compatible search helper returning only result rows."""
-        page = await self.search_page(
-            query=query,
-            start=start,
-            count=count,
-        )
+        page = await self.search_page(query=query, start=start, count=count)
         return page["results"]
 
     async def search_page(
@@ -46,13 +41,6 @@ class EncarClient:
         start: int = 0,
         count: int = 50,
     ) -> dict:
-        """
-        Fetch one Encar search page.
-
-        Encar's current query uses ModifiedDate ordering. We intentionally
-        paginate instead of assuming that the first page contains every
-        newly advertised car.
-        """
         params = {
             "count": "true",
             "q": query,
@@ -67,7 +55,11 @@ class EncarClient:
                     ENCAR_API_URL,
                     params=params,
                 )
-            except (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError) as error:
+            except (
+                httpx.ConnectError,
+                httpx.ReadTimeout,
+                httpx.RemoteProtocolError,
+            ) as error:
                 last_error = error
                 if attempt == 2:
                     raise
@@ -75,9 +67,33 @@ class EncarClient:
                 continue
 
             if response.status_code == 407:
+                # Diagnostic only: expose headers that identify whether the
+                # 407 response came through a proxy/gateway.
+                interesting_headers = {
+                    key: value
+                    for key, value in response.headers.items()
+                    if key.lower()
+                    in {
+                        "server",
+                        "via",
+                        "proxy-authenticate",
+                        "www-authenticate",
+                        "x-cache",
+                        "x-cache-hits",
+                        "cf-ray",
+                        "x-served-by",
+                        "x-cache-status",
+                        "age",
+                        "location",
+                    }
+                }
+                body_preview = response.text[:500].replace("\n", " ")
                 raise RuntimeError(
                     "Encar returned HTTP 407 Proxy Authentication Required. "
-                    "Proxy environment variables are disabled for this client."
+                    "Proxy environment variables are disabled for this client. "
+                    f"request_start={start}; request_count={count}; "
+                    f"response_headers={interesting_headers}; "
+                    f"body_preview={body_preview!r}"
                 )
 
             if response.status_code == 429:
