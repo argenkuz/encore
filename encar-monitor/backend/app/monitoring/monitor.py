@@ -17,7 +17,10 @@ from app.telegram.notifications import TelegramNotifier
 KOREA_TZ = ZoneInfo("Asia/Seoul")
 MAX_VIEWS = 50
 SEARCH_PAGE_SIZE = 50
-DETAIL_CONCURRENCY = 5
+MAX_SEARCH_PAGES = 10
+SEARCH_PAGE_DELAY_SECONDS = 3
+DETAIL_CONCURRENCY = 2
+DETAIL_DELAY_SECONDS = 0.3
 
 
 def matches_filter(car, filter_: Filter) -> bool:
@@ -132,6 +135,7 @@ class EncarMonitor:
         async def load_one(raw_car: dict):
             async with semaphore:
                 try:
+                    await asyncio.sleep(DETAIL_DELAY_SECONDS)
                     details = await self.encar_client.get_vehicle_details(
                         int(raw_car["Id"])
                     )
@@ -169,7 +173,10 @@ class EncarMonitor:
             total_catalog = None
             pages = 0
 
-            while True:
+            while pages < MAX_SEARCH_PAGES:
+                if pages > 0:
+                    await asyncio.sleep(SEARCH_PAGE_DELAY_SECONDS)
+
                 page = await self.encar_client.search_page(
                     query=query,
                     start=start,
