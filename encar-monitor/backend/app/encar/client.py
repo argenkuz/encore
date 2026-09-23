@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import httpx
 
 
@@ -58,11 +59,44 @@ class EncarClient:
             "sr": f"|ModifiedDate|{start}|{count}",
         }
 
-        response = await self.client.get(
-            ENCAR_API_URL,
-            params=params,
-        )
-        response.raise_for_status()
+        last_error = None
+
+        for attempt in range(3):
+            try:
+                response = await self.client.get(
+                    ENCAR_API_URL,
+                    params=params,
+                )
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError) as error:
+                last_error = error
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(1 * (attempt + 1))
+                continue
+
+            if response.status_code == 407:
+                raise RuntimeError(
+                    "Encar returned HTTP 407 Proxy Authentication Required. "
+                    "Proxy environment variables are disabled for this client."
+                )
+
+            if response.status_code == 429:
+                if attempt == 2:
+                    response.raise_for_status()
+                await asyncio.sleep(2 * (attempt + 1))
+                continue
+
+            if response.status_code in {502, 503, 504}:
+                if attempt == 2:
+                    response.raise_for_status()
+                await asyncio.sleep(1 * (attempt + 1))
+                continue
+
+            response.raise_for_status()
+            break
+        else:
+            if last_error is not None:
+                raise last_error
 
         data = response.json()
 
