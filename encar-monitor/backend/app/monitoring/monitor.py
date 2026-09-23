@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -15,6 +16,8 @@ from app.telegram.notifications import TelegramNotifier
 
 KOREA_TZ = ZoneInfo("Asia/Seoul")
 MAX_VIEWS = 50
+SEARCH_PAGE_SIZE = 50
+DETAIL_CONCURRENCY = 5
 
 
 def matches_filter(car, filter_: Filter) -> bool:
@@ -89,6 +92,62 @@ class EncarMonitor:
         self.encar_client = EncarClient()
         self.notifier = notifier
 
+    async def _load_new_details(
+        self,
+        raw_cars: list[dict],
+        filter_id: int,
+        db,
+    ) -> list:
+        """Load details only for cars not already seen by this filter."""
+        if not raw_cars:
+            return []
+
+        raw_ids = []
+        for raw_car in raw_cars:
+            try:
+                raw_ids.append(int(raw_car["Id"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+
+        if not raw_ids:
+            return []
+
+        seen_ids = set(
+            db.scalars(
+                select(SeenCar.encar_id).where(
+                    SeenCar.filter_id == filter_id,
+                    SeenCar.encar_id.in_(raw_ids),
+                )
+            ).all()
+        )
+
+        candidates = [
+            raw_car
+            for raw_car in raw_cars
+            if int(raw_car.get("Id", 0) or 0) not in seen_ids
+        ]
+
+        semaphore = asyncio.Semaphore(DETAIL_CONCURRENCY)
+
+        async def load_one(raw_car: dict):
+            async with semaphore:
+                try:
+                    details = await self.encar_client.get_vehicle_details(
+                        int(raw_car["Id"])
+                    )
+                    return parse_car(raw_car, details)
+                except Exception as error:
+                    print(
+                        f"[Monitor] Failed to load Encar details "
+                        f"for {raw_car.get('Id')}: {error}"
+                    )
+                    return None
+
+        parsed = await asyncio.gather(
+            *(load_one(raw_car) for raw_car in candidates)
+        )
+        return [car for car in parsed if car is not None]
+
     async def check_filter(self, filter_: Filter) -> list:
         query = EncarQueryBuilder.build(filter_)
 
@@ -101,119 +160,162 @@ class EncarMonitor:
             f"mileage={filter_.mileage_from}-{filter_.mileage_to}"
         )
 
-        raw_cars = await self.encar_client.search(
-            query=query,
-            start=0,
-            count=20,
-        )
-
-        new_cars = []
         db = SessionLocal()
         today_korea = datetime.now(KOREA_TZ).date()
+        candidates = []
 
         try:
-            for raw_car in raw_cars:
-                try:
-                    details = await self.encar_client.get_vehicle_details(
-                        int(raw_car["Id"])
-                    )
-                    car = parse_car(
-                        raw_car,
-                        details,
-                    )
-                except Exception as error:
-                    print(
-                        f"[Monitor] Failed to load Encar details "
-                        f"for {raw_car.get('Id')}: {error}"
-                    )
-                    continue
+            start = 0
+            total_catalog = None
+            pages = 0
 
-                if not matches_filter(car, filter_):
-                    print(
-                        f"[Monitor] Skip {car.encar_id}: "
-                        f"does not match filter "
-                        f"(year={car.year}, month={car.month}, "
-                        f"price={car.price}, mileage={car.mileage})"
-                    )
-                    continue
+            while True:
+                page = await self.encar_client.search_page(
+                    query=query,
+                    start=start,
+                    count=SEARCH_PAGE_SIZE,
+                )
+                raw_cars = page["results"]
+                total_catalog = page["total"]
+                pages += 1
 
-                if car.first_advertised_at is None:
-                    print(
-                        f"[Monitor] Skip {car.encar_id}: "
-                        f"no firstAdvertisedDateTime"
-                    )
-                    continue
+                if not raw_cars:
+                    break
 
-                if car.first_advertised_at.date() != today_korea:
-                    continue
+                print(
+                    f"[Monitor] Filter #{filter_.id}: "
+                    f"page={pages}, start={start}, "
+                    f"received={len(raw_cars)}, total={total_catalog}"
+                )
 
-                if car.view_count is None:
-                    print(
-                        f"[Monitor] Skip {car.encar_id}: "
-                        f"no viewCount"
-                    )
-                    continue
+                cars = await self._load_new_details(
+                    raw_cars=raw_cars,
+                    filter_id=filter_.id,
+                    db=db,
+                )
 
-                if car.view_count > MAX_VIEWS:
-                    continue
-
-                if is_new_car(
-                    db,
-                    filter_.id,
-                    car.encar_id,
-                ):
-                    new_cars.append(car)
-                    db.add(
-                        SeenCar(
-                            filter_id=filter_.id,
-                            encar_id=car.encar_id,
+                for car in cars:
+                    if not matches_filter(car, filter_):
+                        print(
+                            f"[Monitor] Skip {car.encar_id}: "
+                            f"does not match filter "
+                            f"(year={car.year}, month={car.month}, "
+                            f"price={car.price}, mileage={car.mileage})"
                         )
-                    )
+                        continue
 
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
+                    if car.first_advertised_at is None:
+                        print(
+                            f"[Monitor] Skip {car.encar_id}: "
+                            f"no firstAdvertisedDateTime"
+                        )
+                        continue
+
+                    if car.first_advertised_at.date() != today_korea:
+                        continue
+
+                    if car.view_count is None:
+                        print(
+                            f"[Monitor] Skip {car.encar_id}: "
+                            f"no viewCount"
+                        )
+                        continue
+
+                    if car.view_count > MAX_VIEWS:
+                        continue
+
+                    candidates.append(car)
+
+                start += len(raw_cars)
+
+                # Stop only after the actual last page. We do not stop on
+                # "old" firstAdvertisedDateTime because the API is ordered
+                # by ModifiedDate, not by first advertisement date.
+                if len(raw_cars) < SEARCH_PAGE_SIZE:
+                    break
+
+            print(
+                f"[Monitor] Filter #{filter_.id}: "
+                f"catalog scan complete, pages={pages}, "
+                f"total={total_catalog}, candidates={len(candidates)}"
+            )
+
         finally:
             db.close()
 
-        if new_cars:
-            recipient_db = SessionLocal()
+        if not candidates:
+            return []
 
-            try:
-                recipient_ids = recipient_db.scalars(
-                    select(TelegramRecipient.telegram_id)
-                    .order_by(TelegramRecipient.telegram_id)
-                ).all()
-            finally:
-                recipient_db.close()
-
-            if recipient_ids:
-                for telegram_id in recipient_ids:
-                    for car in new_cars:
-                        try:
-                            await self.notifier.send_car(
-                                telegram_id=telegram_id,
-                                car=car,
-                            )
-                        except Exception as error:
-                            print(
-                                f"[Monitor] Telegram notification failed "
-                                f"for {telegram_id}: {error}"
-                            )
-
-                print(
-                    f"[Monitor] Filter #{filter_.id}: "
-                    f"sent {len(new_cars)} new cars to "
-                    f"{len(recipient_ids)} Telegram recipient(s)"
+        recipient_db = SessionLocal()
+        try:
+            recipient_ids = recipient_db.scalars(
+                select(TelegramRecipient.telegram_id).order_by(
+                    TelegramRecipient.telegram_id
                 )
+            ).all()
+        finally:
+            recipient_db.close()
+
+        if not recipient_ids:
+            print(
+                f"[Monitor] Filter #{filter_.id}: "
+                f"{len(candidates)} candidates, but no Telegram recipients configured."
+            )
+            return []
+
+        notified = []
+
+        for car in candidates:
+            delivered_to_all = True
+
+            for telegram_id in recipient_ids:
+                try:
+                    await self.notifier.send_car(
+                        telegram_id=telegram_id,
+                        car=car,
+                    )
+                except Exception as error:
+                    delivered_to_all = False
+                    print(
+                        f"[Monitor] Telegram notification failed "
+                        f"for {telegram_id}, car {car.encar_id}: {error}"
+                    )
+
+            if delivered_to_all:
+                notified.append(car)
+
+                db = SessionLocal()
+                try:
+                    if is_new_car(
+                        db,
+                        filter_.id,
+                        car.encar_id,
+                    ):
+                        db.add(
+                            SeenCar(
+                                filter_id=filter_.id,
+                                encar_id=car.encar_id,
+                            )
+                        )
+                        db.commit()
+                except Exception:
+                    db.rollback()
+                    raise
+                finally:
+                    db.close()
             else:
                 print(
-                    f"[Monitor] Filter #{filter_.id}: "
-                    f"{len(new_cars)} new cars, but no Telegram recipients configured."
+                    f"[Monitor] Car {car.encar_id} remains retryable "
+                    f"because at least one Telegram delivery failed."
                 )
 
-        return new_cars
+        print(
+            f"[Monitor] Filter #{filter_.id}: "
+            f"notified {len(notified)} of {len(candidates)} candidate(s) "
+            f"to {len(recipient_ids)} Telegram recipient(s)"
+        )
+
+        return notified
 
     async def check_user(self, user_id: int) -> int:
         db = SessionLocal()
