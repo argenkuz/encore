@@ -30,6 +30,27 @@ class EncarClient:
         start: int = 0,
         count: int = 20,
     ) -> list[dict]:
+        """Backward-compatible search helper returning only result rows."""
+        page = await self.search_page(
+            query=query,
+            start=start,
+            count=count,
+        )
+        return page["results"]
+
+    async def search_page(
+        self,
+        query: str,
+        start: int = 0,
+        count: int = 50,
+    ) -> dict:
+        """
+        Fetch one Encar search page.
+
+        Encar's current query uses ModifiedDate ordering. We intentionally
+        paginate instead of assuming that the first page contains every
+        newly advertised car.
+        """
         params = {
             "count": "true",
             "q": query,
@@ -44,7 +65,10 @@ class EncarClient:
 
         data = response.json()
 
-        return data.get("SearchResults", [])
+        return {
+            "results": data.get("SearchResults", []),
+            "total": int(data.get("Count", 0) or 0),
+        }
 
     async def get_vehicle_details(self, encar_id: int) -> dict:
         response = await self.client.get(
