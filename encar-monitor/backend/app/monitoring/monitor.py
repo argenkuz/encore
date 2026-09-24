@@ -166,10 +166,10 @@ class EncarMonitor:
         filter_id: int,
         filter_: Filter,
         db,
-    ) -> list:
+    ) -> tuple[list, int]:
         """Load details only for cars not already seen by this filter."""
         if not raw_cars:
-            return []
+            return [], 0
 
         raw_ids = []
         for raw_car in raw_cars:
@@ -179,7 +179,7 @@ class EncarMonitor:
                 continue
 
         if not raw_ids:
-            return []
+            return [], 0
 
         seen_ids = set(
             db.scalars(
@@ -227,7 +227,7 @@ class EncarMonitor:
         parsed = await asyncio.gather(
             *(load_one(raw_car) for raw_car in candidates)
         )
-        return [car for car in parsed if car is not None]
+        return [car for car in parsed if car is not None], light_skipped
 
     async def check_filter(self, filter_: Filter) -> list:
         query = EncarQueryBuilder.build(filter_)
@@ -272,39 +272,12 @@ class EncarMonitor:
                     f"received={len(raw_cars)}, total={total_catalog}"
                 )
 
-                cars = await self._load_new_details(
+                cars, page_light_skipped = await self._load_new_details(
                     raw_cars=raw_cars,
                     filter_id=filter_.id,
                     filter_=filter_,
                     db=db,
                 )
-
-                # _load_new_details applies the light pre-filter before
-                # detail requests. Count skipped cars for compact logging.
-                page_seen_ids = set(
-                    db.scalars(
-                        select(SeenCar.encar_id).where(
-                            SeenCar.filter_id == filter_.id,
-                            SeenCar.encar_id.in_(
-                                [
-                                    int(raw_car["Id"])
-                                    for raw_car in raw_cars
-                                    if raw_car.get("Id") is not None
-                                ]
-                            ),
-                        )
-                    ).all()
-                )
-                page_light_skipped = 0
-                for raw_car in raw_cars:
-                    try:
-                        encar_id = int(raw_car.get("Id", 0) or 0)
-                    except (TypeError, ValueError):
-                        continue
-                    if encar_id in page_seen_ids:
-                        continue
-                    if not matches_raw_filter(raw_car, filter_):
-                        page_light_skipped += 1
 
                 print(
                     f"[Monitor] Filter #{filter_.id}: "
