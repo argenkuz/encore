@@ -17,9 +17,9 @@ from app.telegram.notifications import TelegramNotifier
 KOREA_TZ = ZoneInfo("Asia/Seoul")
 MAX_VIEWS = 50
 SEARCH_PAGE_SIZE = 50
-SEARCH_PAGE_DELAY_SECONDS = 1
-DETAIL_CONCURRENCY = 10
-DETAIL_DELAY_SECONDS = 0.3
+SEARCH_PAGE_DELAY_SECONDS = 3
+DETAIL_CONCURRENCY = 3
+DETAIL_DELAY_SECONDS = 1
 
 
 def matches_filter(car, filter_: Filter) -> bool:
