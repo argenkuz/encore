@@ -17,7 +17,6 @@ from app.telegram.notifications import TelegramNotifier
 KOREA_TZ = ZoneInfo("Asia/Seoul")
 MAX_VIEWS = 50
 SEARCH_PAGE_SIZE = 50
-MAX_SEARCH_PAGES = 10
 SEARCH_PAGE_DELAY_SECONDS = 3
 DETAIL_CONCURRENCY = 2
 DETAIL_DELAY_SECONDS = 0.3
@@ -26,12 +25,6 @@ DETAIL_DELAY_SECONDS = 0.3
 def matches_filter(car, filter_: Filter) -> bool:
     """Strict local validation before a car can be sent to Telegram."""
 
-    # Treat year/month as one calendar range.
-    #
-    # Examples:
-    #   11.2019 -> 2023       = 2019-11 through 2023-12
-    #   2020    -> 2023       = 2020-01 through 2023-12
-    #   2020-03 -> 2022-08    = 2020-03 through 2022-08
     if (
         filter_.year_from is not None
         or filter_.month_from is not None
@@ -173,7 +166,7 @@ class EncarMonitor:
             total_catalog = None
             pages = 0
 
-            while pages < MAX_SEARCH_PAGES:
+            while True:
                 if pages > 0:
                     await asyncio.sleep(SEARCH_PAGE_DELAY_SECONDS)
 
