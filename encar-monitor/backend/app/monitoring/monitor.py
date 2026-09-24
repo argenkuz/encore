@@ -164,6 +164,7 @@ class EncarMonitor:
         self,
         raw_cars: list[dict],
         filter_id: int,
+        filter_: Filter,
         db,
     ) -> list:
         """Load details only for cars not already seen by this filter."""
@@ -276,6 +277,7 @@ class EncarMonitor:
                 cars = await self._load_new_details(
                     raw_cars=raw_cars,
                     filter_id=filter_.id,
+                    filter_=filter_,
                     db=db,
                 )
 
