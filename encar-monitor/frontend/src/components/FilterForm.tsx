@@ -89,7 +89,7 @@ const FUEL_TYPES = [
     label: "Дизель",
   },
   {
-    value: "하이브리드",
+    value: "가솔린+전기",
     label: "Гибрид",
   },
   {
@@ -97,8 +97,16 @@ const FUEL_TYPES = [
     label: "Электро",
   },
   {
-    value: "LPG",
+    value: "LPG(일반인 구입)",
     label: "LPG",
+  },
+  {
+    value: "수소",
+    label: "Водород",
+  },
+  {
+    value: "가솔린+LPG",
+    label: "Бензин + LPG",
   },
 ];
 
