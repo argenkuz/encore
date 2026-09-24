@@ -22,6 +22,78 @@ DETAIL_CONCURRENCY = 3
 DETAIL_DELAY_SECONDS = 1
 
 
+def matches_raw_filter(raw_car: dict, filter_: Filter) -> bool:
+    """Cheap filter using fields already present in Encar search results.
+
+    This intentionally checks only fields that can be validated without a
+    vehicle detail request. Missing values are allowed through so that the
+    existing strict validation in matches_filter() keeps the final semantics.
+    """
+
+    # Encar search Year may be YYYYMM (for example 202609).
+    if (
+        filter_.year_from is not None
+        or filter_.month_from is not None
+        or filter_.year_to is not None
+        or filter_.month_to is not None
+    ):
+        year_raw = raw_car.get("Year")
+        if year_raw is not None:
+            try:
+                year_value = int(year_raw)
+                if year_value >= 10000:
+                    car_yyyymm = year_value
+                else:
+                    # A year without a month cannot satisfy the strict
+                    # year/month filter, so leave it for detail validation.
+                    car_yyyymm = None
+
+                if car_yyyymm is not None:
+                    if filter_.year_from is not None:
+                        start_month = (
+                            filter_.month_from
+                            if filter_.month_from is not None
+                            else 1
+                        )
+                        if car_yyyymm < filter_.year_from * 100 + start_month:
+                            return False
+
+                    if filter_.year_to is not None:
+                        end_month = (
+                            filter_.month_to
+                            if filter_.month_to is not None
+                            else 12
+                        )
+                        if car_yyyymm > filter_.year_to * 100 + end_month:
+                            return False
+            except (TypeError, ValueError):
+                pass
+
+    price_raw = raw_car.get("Price")
+    if price_raw is not None:
+        try:
+            price = int(price_raw)
+            if filter_.price_from is not None and price < filter_.price_from:
+                return False
+            if filter_.price_to is not None and price > filter_.price_to:
+                return False
+        except (TypeError, ValueError):
+            pass
+
+    mileage_raw = raw_car.get("Mileage")
+    if mileage_raw is not None:
+        try:
+            mileage = int(mileage_raw)
+            if filter_.mileage_from is not None and mileage < filter_.mileage_from:
+                return False
+            if filter_.mileage_to is not None and mileage > filter_.mileage_to:
+                return False
+        except (TypeError, ValueError):
+            pass
+
+    return True
+
+
 def matches_filter(car, filter_: Filter) -> bool:
     """Strict local validation before a car can be sent to Telegram."""
 
@@ -117,11 +189,24 @@ class EncarMonitor:
             ).all()
         )
 
-        candidates = [
-            raw_car
-            for raw_car in raw_cars
-            if int(raw_car.get("Id", 0) or 0) not in seen_ids
-        ]
+        candidates = []
+        for raw_car in raw_cars:
+            try:
+                encar_id = int(raw_car.get("Id", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+
+            if encar_id in seen_ids:
+                continue
+
+            if not matches_raw_filter(raw_car, filter_):
+                print(
+                    f"[Monitor] Light skip {encar_id}: "
+                    f"does not match raw search fields"
+                )
+                continue
+
+            candidates.append(raw_car)
 
         semaphore = asyncio.Semaphore(DETAIL_CONCURRENCY)
 
