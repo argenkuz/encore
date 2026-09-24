@@ -191,6 +191,7 @@ class EncarMonitor:
         )
 
         candidates = []
+        light_skipped = 0
         for raw_car in raw_cars:
             try:
                 encar_id = int(raw_car.get("Id", 0) or 0)
@@ -201,10 +202,7 @@ class EncarMonitor:
                 continue
 
             if not matches_raw_filter(raw_car, filter_):
-                print(
-                    f"[Monitor] Light skip {encar_id}: "
-                    f"does not match raw search fields"
-                )
+                light_skipped += 1
                 continue
 
             candidates.append(raw_car)
@@ -279,6 +277,39 @@ class EncarMonitor:
                     filter_id=filter_.id,
                     filter_=filter_,
                     db=db,
+                )
+
+                # _load_new_details applies the light pre-filter before
+                # detail requests. Count skipped cars for compact logging.
+                page_seen_ids = set(
+                    db.scalars(
+                        select(SeenCar.encar_id).where(
+                            SeenCar.filter_id == filter_.id,
+                            SeenCar.encar_id.in_(
+                                [
+                                    int(raw_car["Id"])
+                                    for raw_car in raw_cars
+                                    if raw_car.get("Id") is not None
+                                ]
+                            ),
+                        )
+                    ).all()
+                )
+                page_light_skipped = 0
+                for raw_car in raw_cars:
+                    try:
+                        encar_id = int(raw_car.get("Id", 0) or 0)
+                    except (TypeError, ValueError):
+                        continue
+                    if encar_id in page_seen_ids:
+                        continue
+                    if not matches_raw_filter(raw_car, filter_):
+                        page_light_skipped += 1
+
+                print(
+                    f"[Monitor] Filter #{filter_.id}: "
+                    f"page={pages} summary, light_skipped={page_light_skipped}, "
+                    f"details={len(cars)}"
                 )
 
                 for car in cars:
