@@ -30,6 +30,11 @@ def matches_raw_filter(raw_car: dict, filter_: Filter) -> bool:
     existing strict validation in matches_filter() keeps the final semantics.
     """
 
+    if filter_.badge:
+        raw_badge = raw_car.get("Badge")
+        if raw_badge is not None and raw_badge != filter_.badge:
+            return False
+
     # Encar search Year may be YYYYMM (for example 202609).
     if (
         filter_.year_from is not None
@@ -44,8 +49,6 @@ def matches_raw_filter(raw_car: dict, filter_: Filter) -> bool:
                 if year_value >= 10000:
                     car_yyyymm = year_value
                 else:
-                    # A year without a month cannot satisfy the strict
-                    # year/month filter, so leave it for detail validation.
                     car_yyyymm = None
 
                 if car_yyyymm is not None:
@@ -96,6 +99,9 @@ def matches_raw_filter(raw_car: dict, filter_: Filter) -> bool:
 
 def matches_filter(car, filter_: Filter) -> bool:
     """Strict local validation before a car can be sent to Telegram."""
+
+    if filter_.badge and car.badge != filter_.badge:
+        return False
 
     if (
         filter_.year_from is not None
@@ -229,6 +235,7 @@ class EncarMonitor:
         )
         return [car for car in parsed if car is not None], light_skipped
 
+
     async def check_filter(self, filter_: Filter) -> list:
         query = EncarQueryBuilder.build(filter_)
 
@@ -319,9 +326,6 @@ class EncarMonitor:
 
                 start += len(raw_cars)
 
-                # Stop only after the actual last page. We do not stop on
-                # "old" firstAdvertisedDateTime because the API is ordered
-                # by ModifiedDate, not by first advertisement date.
                 if len(raw_cars) < SEARCH_PAGE_SIZE:
                     break
 
@@ -408,6 +412,7 @@ class EncarMonitor:
 
         return notified
 
+
     async def check_user(self, user_id: int) -> int:
         db = SessionLocal()
 
@@ -441,6 +446,7 @@ class EncarMonitor:
             return total_new
         finally:
             db.close()
+
 
     async def check_due_users(self):
         now = datetime.utcnow()
@@ -508,6 +514,7 @@ class EncarMonitor:
                     )
         finally:
             db.close()
+
 
     async def close(self):
         await self.encar_client.close()
