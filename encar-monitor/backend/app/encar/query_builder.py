@@ -20,10 +20,8 @@ class EncarQueryBuilder:
                 f"Model.{filter_.model}"
             )
 
-        if filter_.badge:
-            conditions.append(
-                f"Badge.{filter_.badge}"
-            )
+        # Encar rejects Badge conditions in the general search query.
+        # Badge is checked locally after the search result is parsed.
 
         if filter_.fuel_type:
             conditions.append(
