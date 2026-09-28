@@ -8,4 +8,5 @@ aiogram
 apscheduler
 python-dotenv
 psycopg2-binary
+psycopg[binary]
 beautifulsoup4
